@@ -784,9 +784,10 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 				.then(snapshot => {	
 					let matchUpcoming = []
 					
-					if (snapshot.numChildren() > 0) {						
+					if (snapshot.numChildren() > 0) {	
+					
 						snapshot.forEach(function(matchSnapshot) {
-							if ( !matchSnapshot.val().live && ( matchSnapshot.val().team1_id & matchSnapshot.val().team2_id ) )
+							if ( !matchSnapshot.val().live && ( matchSnapshot.val().team1_id && matchSnapshot.val().team2_id ) )
 							{
 								matchUpcoming.push(matchSnapshot.val());
 							}
@@ -796,7 +797,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 
 					return matchUpcoming;
 				});	
-
+						
 	array_matches_live = await admin.database().ref('/matches/live')							
 								.once('value')
 								.then(snapshot => {	
