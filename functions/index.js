@@ -26,7 +26,10 @@ const createMatchesRealTimeDatabase = async () => {
 	matches.forEach(async (item, idx) => {
 
 		if ( item.team1 && item.team2  )
-		{		
+		{	
+			let team1 = await getRankTeamMatch(item.team1.id);	
+			let team2 = await getRankTeamMatch(item.team2.id);	
+
 			let matchExistInLive = await admin.database().ref('/matches/live/' + item.id).once('value').then(function(snapshot) {
 				return snapshot.exists();
 			})
@@ -37,7 +40,7 @@ const createMatchesRealTimeDatabase = async () => {
 
 			admin.database().ref('/matches/upcoming/' + item.id).once('value').then( async function(snapshot) {							
 				if (!matchExistInLive && !matchExistInFinish)
-				{  
+				{  					
 					let match = {
 						match_id  : item.id,
 						date      : item.date ? moment(new Date( item.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : '' ,
@@ -45,6 +48,8 @@ const createMatchesRealTimeDatabase = async () => {
 						team2_id  : typeof item.team2.id === 'undefined' ?  '' : item.team2.id ,
 						team1_name: item.team1  ? item.team1.name : '',
 						team2_name: item.team2  ? item.team2.name : '',
+						team1: team1,
+						team2: team2,
 						format    : item.format ? item.format : '',
 						event_id  : typeof item.event.id === 'undefined' ? '' : item.event.id,
 						title     : item.title ? item.title : '', 
@@ -59,9 +64,9 @@ const createMatchesRealTimeDatabase = async () => {
 
 					try {
 						if ( match.live ) { 
-							admin.database().ref('matches/live/' + item.id ).set(match);
+							admin.database().ref('matches/live/' + item.id ).update(JSON.parse( JSON.stringify(match)));
 						}else { 
-							admin.database().ref('matches/upcoming/' + item.id ).set(match);
+							admin.database().ref('matches/upcoming/' + item.id ).update(JSON.parse( JSON.stringify(match)));
 						}
 					
 					} catch (error) {
@@ -272,16 +277,11 @@ const updateScoreUsers = async (bet, win) => {
 }
 
 const updateBetMapsMatch =  async (match) => {
-	try {		
-		
-		let bets = await getBetsOpens(match.match_id);	
-	
-		if (bets.length > 0 ) 
-		{	
-			bets.forEach( async function(bet, index)  {
-			
+	try {				
+		let bets = await getBetsOpens(match.match_id);		
+		if ( bets.length > 0 ){	
+			bets.forEach( async function(bet, index) {			
 				let type_bet = await getTypeBet( bet[1].type_bet_id );
-
 				if( type_bet.type.includes('map') )
 				{	
 					if ( match.result.maps[type_bet.type] )
@@ -289,7 +289,7 @@ const updateBetMapsMatch =  async (match) => {
 						if (match.result.maps[type_bet.type].winner !== undefined)
 						{											
 							// se houver vencedor e for do tipo mapa  eu executo a verificação da aposta									
-							let result_bet = await check_bets(bet[1], matchSnap.val()) ? 'win' : 'lost';									
+							let result_bet = await check_bets(bet[1], match) ? 'win' : 'lost';									
 							let objBet = bet[1];
 
 							objBet.result = result_bet;
@@ -499,8 +499,7 @@ const getTypeBet = async (type_bet_id) => {
 }
 
 const updateMatchesLive =  async () => {
-	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');	
-
+	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
 	await admin.database().ref('/matches/live')
 		.orderByChild('updated_at').limitToFirst(3)
 			.once('value').then( async function(snapshot) {
@@ -525,7 +524,9 @@ const updateMatchesLive =  async () => {
 					});		
 		
 					if ( matchHLTV )
-					{			
+					{		
+						let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
+						let team2 = await getRankTeamMatch(matchHLTV.team2.id);		
 						//processo de captura de resultados				
 						let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
 
@@ -546,9 +547,7 @@ const updateMatchesLive =  async () => {
 								map.statsId = matchHLTV.maps[index].statsId;
 								map.winner = null;
 							}
-
-							
-							 
+														 
 							//console.log( Number(map.score_team1) + Number(map.score_team2) >= 15, '' );
 
 							let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
@@ -588,6 +587,8 @@ const updateMatchesLive =  async () => {
 							team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
 							team1_name:  matchHLTV.team1  ? matchHLTV.team1.name : null,
 							team2_name:  matchHLTV.team2  ? matchHLTV.team2.name : null,
+							team1: team1,
+							team2: team2,
 							format    :  matchHLTV.format ? matchHLTV.format : null,
 							event_id  :  matchHLTV.event  ? matchHLTV.event.id : null,
 							title     :  matchHLTV.title  ? matchHLTV.title : null, 
@@ -645,7 +646,8 @@ const updateMatchesUpcoming = async () => {
 				if ( snapshot.numChildren() > 0) 
 				{
 					snapshot.forEach( async function (element) {
-						let matchHLTV = null;	
+							let matchHLTV = null;
+
 							try {	
 								matchHLTV = await HLTV.getMatch({id: element.val().match_id}).then((res) => {	
 									//console.log(res);									
@@ -655,8 +657,11 @@ const updateMatchesUpcoming = async () => {
 								});		
 			
 							if ( matchHLTV )
-							{			
-									//processo de captura de resultados				
+							{		
+								let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
+								let team2 = await getRankTeamMatch(matchHLTV.team2.id);
+
+								//processo de captura de resultados				
 								let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
 		
 								let result = {};
@@ -718,7 +723,9 @@ const updateMatchesUpcoming = async () => {
 									title     :  matchHLTV.title  ? matchHLTV.title : null, 
 									event_name:  matchHLTV.event  ? matchHLTV.event.name : null,
 									stars     :  matchHLTV.stars  ? matchHLTV.stars : null,
-									live      :  matchHLTV.live   ? matchHLTV.live : false,   							
+									live      :  matchHLTV.live   ? matchHLTV.live : false,   
+									team1: team1,
+									team2: team2,							
 									match_over:  matchHLTV.status  == 'Match over' ?  true : false, 
 									canceled  :  matchHLTV.status  == 'Match over' || 'Live' ?  false : true, 
 									stats_id  :  matchHLTV.statsId,
@@ -767,15 +774,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	let array_matches_tomorrow = [];		
 	let array_matches = [];
 	let date = null;
-
-	if (req.query.name) { 
-		console.log('tem busca') 
-	} else { 
-		console.log('Não tem!')
-	}
-
 	let matches_formatted = new Object();
-
 	let tomorrow = moment().tz('America/Sao_Paulo').add(1, 'day').format('YYYY/MM/DD');	
 	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');	
 
@@ -875,18 +874,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 			data: groups[date]
 		};
 	});
-
-	// let hoje =	{title: 'hoje', "data" : array_matches_today };
-	// 	{title: 'amanha'}, { "data" : array_matches_tomorrow },
-	// 	{title: 'live'}, { "data" : array_matches_live },
-	// 	{title: 'others'}, { "data" : groupArrays }
-
-	// matches_formatted.data  = [ 
-	// 	{ title: 'hoje', "data" : array_matches_today },
-	// 	{ title: 'amanha',  "data" : array_matches_tomorrow },
-	// 	{ title: 'live',  "data" : array_matches_live },
 		
-	// ];		
 	let arrayData= []; 
 
 	arrayData.push({ title: 'Live',  "data" : array_matches_live.filter( 
@@ -1005,8 +993,7 @@ exports.updateRankingMonthly = functions.pubsub.schedule('*/3 * * * *').onRun( a
 		
 	});
 
-	console.log('updateBetsMatchFinish will be run every 3 minutes!');
-	return res.json('Teste');
+	return null;
 });
 
 exports.updateRankingYearly  = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
@@ -1035,8 +1022,7 @@ exports.updateRankingYearly  = functions.pubsub.schedule('*/3 * * * *').onRun( a
 		
 	});
 
-	console.log('updateBetsMatchFinish will be run every 3 minutes!');
-	return res.json('Teste');
+	return null;
 })
 
 // exports.resetPointsMonthly = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
@@ -1061,6 +1047,57 @@ const getTeamHTLV = async (team_id) => {
     } catch (error) {
         console.log(error);
     }
+
+    return team;
+}
+
+const getMapsHTLV = async (match_id) => {
+    let team = {};
+
+    try {
+        await HLTV.getTeam({id: team_id}).then(res => {
+            team = res
+        })
+    } catch (error) {
+        console.log(error);
+    }
+
+    return team;
+}
+
+const getRankTeamMatch = async (team_id) => { 	
+	let team = {};
+	await admin.database()
+			.ref('/teams/' + team_id)
+			.once('value').then( async (snapTeam) => {
+				if ( snapTeam.exists() ) 
+				{
+					team = snapTeam.val();
+					
+					let diff = moment(moment().tz('America/Sao_Paulo')).diff(moment(team.updated_at) , "days");
+					if ( diff >= 7 )
+					{
+						team = await getTeamHTLV(team_id);
+						team.updated_at = team.updated_at =  moment().tz('America/Sao_Paulo').format();;
+						await admin.database().ref('/teams/' + team.id).update(JSON.parse(JSON.stringify(team)));
+					}
+				}else {
+					team = await getTeamHTLV(team_id);
+					team.updated_at = team.updated_at =  moment().tz('America/Sao_Paulo').format();;
+					await admin.database().ref('/teams/' + team.id).update(JSON.parse(JSON.stringify(team)));
+				}
+			});		
+	
+	let tier = await admin.database().ref('/tier-by-rank/' + team.rank).once('value').then( function (snapTier) { 
+		if ( snapTier.exists() )
+		{
+			return snapTier.val();
+		}else {
+			return { tier: 7 }
+		}		
+	});
+
+	team.tier = tier.tier;
 
     return team;
 }
@@ -1107,18 +1144,11 @@ exports.getRankTeam = functions.https.onRequest( async (req, res) => {
 
 	if ( req.query.tier )
 	{
-		return res.json(team.tier);
+		return res.status(200).send(team.tier);
 	}
 
-    return res.json(team)
+    return res.status(200).send(team);
 });
-
-
-exports.teste = functions.https.onRequest( async (req, res) => { 
-
-    
-});
-
 
 // const rankByTier = () => { 
 
@@ -1178,4 +1208,8 @@ exports.teste = functions.https.onRequest( async (req, res) => {
 
 //     return rating_all_tier;
 // }
+exports.teste = functions.https.onRequest( async (req, res) => { 	
+	await updateBetsMatchLive();
 
+	return  res.end();
+});
