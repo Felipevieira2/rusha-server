@@ -499,9 +499,11 @@ const getTypeBet = async (type_bet_id) => {
 }
 
 const updateMatchesLive =  async () => {
+
 	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
+
 	await admin.database().ref('/matches/live')
-		.orderByChild('updated_at').limitToFirst(3)
+		.orderByChild('updated_at').limitToFirst(4)
 			.once('value').then( async function(snapshot) {
 				console.log(snapshot.numChildren() + " Founds");
 				
@@ -741,7 +743,7 @@ const updateMatchesUpcoming = async () => {
 								{
 									await admin.database().ref('/matches/live/' + element.val().match_id)
 										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element.val().match_id).set(null);
+											admin.database().ref('/matches/upcoming/' + element.val().match_id).remove();
 										}).catch( error => {
 											console.log(error)
 										})												
@@ -1209,7 +1211,5 @@ exports.getRankTeam = functions.https.onRequest( async (req, res) => {
 //     return rating_all_tier;
 // }
 exports.teste = functions.https.onRequest( async (req, res) => { 	
-	await updateBetsMatchLive();
-
-	return  res.end();
+	admin.database().ref('/matches/upcoming/' + 2346219).remove();
 });
