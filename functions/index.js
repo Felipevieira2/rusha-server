@@ -27,8 +27,8 @@ const createMatchesRealTimeDatabase = async () => {
 
 		if ( item.team1 && item.team2  )
 		{	
-			let team1 = await getRankTeamMatch(item.team1.id);	
-			let team2 = await getRankTeamMatch(item.team2.id);	
+			let [team1, team2] = await Promise.all([getRankTeamMatch(item.team1.id),
+				getRankTeamMatch(item.team2.id)]);
 
 			let matchExistInLive = await admin.database().ref('/matches/live/' + item.id).once('value').then(function(snapshot) {
 				return snapshot.exists();
@@ -39,7 +39,7 @@ const createMatchesRealTimeDatabase = async () => {
 			})
 
 			admin.database().ref('/matches/upcoming/' + item.id).once('value').then( async function(snapshot) {							
-				if (!matchExistInLive && !matchExistInFinish)
+				if ((!matchExistInLive && !matchExistInFinish)  && !snapshot.exists())
 				{  					
 					let match = {
 						match_id  : item.id,
@@ -61,26 +61,17 @@ const createMatchesRealTimeDatabase = async () => {
 						validated_bets: false,
 						updated_at: today       
 					};
-
-					try {
-						if ( match.live ) { 
-							admin.database().ref('matches/live/' + item.id ).update(JSON.parse( JSON.stringify(match)));
-						}else { 
-							admin.database().ref('matches/upcoming/' + item.id ).update(JSON.parse( JSON.stringify(match)));
-						}
 					
-					} catch (error) {
-						console.log(error);
+				 	admin.database().ref('matches/upcoming/' + item.id ).update(JSON.parse( JSON.stringify(match)));
 					
-					}
-					
+				}else {
+					console.log('partida já existe no banco de dados.')
 				}
 			});						
 		}
 	})	
 		
-	await Promise.all(matches);
-	
+	await Promise.all(matches);	
 };
 
 const updateBetsMatchLive = async () => { 
@@ -240,7 +231,7 @@ const check_bets = async ( bet, match ) => {
 				let isThereWinner = Object.hasOwnProperty.bind(match.result || {})('winnerTeam');
 
 				if ( isThereWinner ) { 
-					win = bet.team_id == match.result.winnerTeam.id;
+					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
 				}			
 			},							
 		}
@@ -484,33 +475,32 @@ const getUsersDatabaseRealtime = async () => {
 }
 
 const is_check_bet_by_match_found = async (match) => {
-		await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(match.match_id).once('value').then( async snap => { 						
-			snap.forEach( async bet => { 			
-				let typeBet = await getTypeBet(bet.val().type_bet_id);
-				let betObject = bet.val();											
-				let isWinBet =  match.result.winnerTeam.id ==  bet.val().team_id;	
+	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(match.match_id).once('value').then( async snap => { 						
+		snap.forEach( async bet => { 			
+			let typeBet = await getTypeBet(bet.val().type_bet_id);
+			let betObject = bet.val();											
+			let isWinBet =  match.result.winnerTeam.id ==  bet.val().team_id;	
 
-				await admin.database().ref('/users/' + bet.val().user_uid).once('value').then( async snapUser => { 			
-						let newPointsRankUser = 
-							{ 
-								rank_points_monthly : parseInt(snapUser.val().rank_points_monthly) + parseInt(bet.val().reward_points),
-								rank_points_yearly : parseInt(snapUser.val().rank_points_yearly) + parseInt(bet.val().reward_points)
-							}
+			await admin.database().ref('/users/' + bet.val().user_uid).once('value').then( async snapUser => { 			
+				let newPointsRankUser = 
+					{ 
+						rank_points_monthly : parseInt(snapUser.val().rank_points_monthly) + parseInt(bet.val().reward_points),
+						rank_points_yearly : parseInt(snapUser.val().rank_points_yearly) + parseInt(bet.val().reward_points)
+					}
 
-						await snapUser.ref.update(newPointsRankUser);
-						await bet.ref.update({result : 'win'})
-						
-						betObject.result = 'win';
+				await snapUser.ref.update(newPointsRankUser);
+				await bet.ref.update({result : 'win'})
+				
+				betObject.result = 'win';
 
-						await admin.database().ref('bets/finish/'+ bet.ref.key ).set(betObject);
-						// //await admin.database().ref('bets/opens/'+ bet.ref.key ).remove();	
+				await admin.database().ref('bets/finish/'+ bet.ref.key ).set(betObject);
+				// //await admin.database().ref('bets/opens/'+ bet.ref.key ).remove();	
 
-						await admin.database().ref('user-bets/'+ bet.val().user_uid + '/finish/'  + bet.ref.key ).set(betObject);
-						// //await admin.database().ref('user-bets/opens/'+ bet.val().user_uid + '/'  + bet.ref.key ).remove();
-					});		
-				});																																																										
-		});
-	
+				await admin.database().ref('user-bets/'+ bet.val().user_uid + '/finish/'  + bet.ref.key ).set(betObject);
+				// //await admin.database().ref('user-bets/opens/'+ bet.val().user_uid + '/'  + bet.ref.key ).remove();
+			});		
+		});																																																										
+	});	
 }
 
 const getTypeBet = async (type_bet_id) => {	
@@ -525,10 +515,7 @@ const getTypeBet = async (type_bet_id) => {
 
 		if ( snap.exists() )
 		{				
-			snap.forEach( item => {
-				betType = item.val();
-			});
-			
+			snap.forEach( item => { betType = item.val(); });			
 		}else{
 			console.log('não encontrado tipo de aposta, função: getTypeBet');			
 		}
@@ -536,16 +523,13 @@ const getTypeBet = async (type_bet_id) => {
 		return betType;
 	});
 }
-
+//atualiza partidas que estão live no banco de dados.
 const updateMatchesLive =  async () => {
-
 	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
-
 	await admin.database().ref('/matches/live')
 		.orderByChild('updated_at').limitToFirst(4)
 			.once('value').then( async function(snapshot) {
-				console.log(snapshot.numChildren() + " Founds");
-				
+				console.log(snapshot.numChildren() + " Founds");				
 				snapshot.forEach( async function (element) {
 					let matchHLTV = null;
 				
@@ -558,139 +542,135 @@ const updateMatchesLive =  async () => {
 					try {	
 						matchHLTV = await HLTV.getMatch({id: element.val().match_id}).then((res) => {	
 							//console.log(res);									
-						return res;
-					}).catch(error => {
-						console.log(element.val())
-						console.log(error, 'Erro getMatch HLTV');
-					});		
+							return res;
+						}).catch(error => {
+							console.log(element.val())
+							console.log(error, 'Erro getMatch HLTV');
+						});		
 		
-					if ( matchHLTV )
-					{		
-						let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
-						let team2 = await getRankTeamMatch(matchHLTV.team2.id);		
-						//processo de captura de resultados				
-						let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
+						if ( matchHLTV )
+						{		
+							let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
+							let team2 = await getRankTeamMatch(matchHLTV.team2.id);		
+							//processo de captura de resultados				
+							let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
 
-						let result = {};
-						let maps = {};
-						let map_current = 'map1';
+							let result = {};
+							let maps = {};
+							let map_current = 'map1';
 
-						for (let index = 0; index < gameTypeBestOf; index++) {
-						
-							let map = {};	
-
-							if ( typeof matchHLTV.maps[index].result !== 'undefined') 
-							{
-								map.name = matchHLTV.maps[index].name;			
-								map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
-								map.score_team1 = matchHLTV.maps[index].result.substring(0, 5).split(":")[0].replace(/\D/g,'');
-								map.score_team2 = matchHLTV.maps[index].result.substring(0, 5).split(":")[1].replace(/\D/g,'');
-								map.statsId = matchHLTV.maps[index].statsId;
-								map.winner = null;
-							}
-														 
-							//console.log( Number(map.score_team1) + Number(map.score_team2) >= 15, '' );
-
-							let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
+							for (let index = 0; index < gameTypeBestOf; index++) {
 							
-							//verifica se a partida tem algum time com score maior que 15						
-							if ( any_team_have_more_than_15_rounds  )								
-							{	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2 
-								if ( Math.abs(Number(map.score_team1) - Number(map.score_team2)) > 1 )
-								{	//gravarei o vencedor! 
-									if ( Number(map.score_team1) > Number(map.score_team2) )
-									{
-										map.winner = { id: matchHLTV.team1.id, name: matchHLTV.team1.name }
-									}else {
-										map.winner = { id: matchHLTV.team2.id, name: matchHLTV.team2.name }
-									}
-									
-									map_current = 'map' + (+index + 2);
-								}								
-							}
-							
-							isNaN(map.score_team1, map.score_team2 ) ? map.finish = false : null;
+								let map = {};	
 
-							maps['map' + (+index + 1)] = JSON.parse( JSON.stringify(map));
+								if ( typeof matchHLTV.maps[index].result !== 'undefined') 
+								{
+									map.name = matchHLTV.maps[index].name;			
+									map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
+									map.score_team1 = matchHLTV.maps[index].result.substring(0, 5).split(":")[0].replace(/\D/g,'');
+									map.score_team2 = matchHLTV.maps[index].result.substring(0, 5).split(":")[1].replace(/\D/g,'');
+									map.statsId = matchHLTV.maps[index].statsId;
+									map.winner = null;
+								}
+															
+								//console.log( Number(map.score_team1) + Number(map.score_team2) >= 15, '' );
 
-							
-						}	
-
-						result.winnerTeam = matchHLTV.winnerTeam;
-						result.maps = maps;
-						result.match_id = matchHLTV.id;
-						
-						// atualização da partida
-						let match = {	
-							match_id  : element.val().match_id,			
-							date      :  matchHLTV.date   ?  moment(new Date( matchHLTV.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : null ,
-							team1_id  :  matchHLTV.team1  ? matchHLTV.team1.id : null ,
-							team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
-							team1_name:  matchHLTV.team1  ? matchHLTV.team1.name : null,
-							team2_name:  matchHLTV.team2  ? matchHLTV.team2.name : null,
-							team1: team1,
-							team2: team2,
-							format    :  matchHLTV.format ? matchHLTV.format : null,
-							event_id  :  matchHLTV.event  ? matchHLTV.event.id : null,
-							title     :  matchHLTV.title  ? matchHLTV.title : null, 
-							event_name:  matchHLTV.event  ? matchHLTV.event.name : null,
-							stars     :  matchHLTV.stars  ? matchHLTV.stars : null,
-							live      :  matchHLTV.live   ? matchHLTV.live : false,   							
-							match_over:  matchHLTV.status  == 'Match over' ?  true : false, 
-							canceled  :  matchHLTV.status  == 'Match over' || 'Live' ?  false : true, 
-							stats_id  :  matchHLTV.statsId,
-							result    :  result,
-							map_current : map_current,
-							validated_bets: false,
-							updated_at:  now      
-						};	
-							
-						if (matchHLTV.status == 'Match over')
-						{			
-							match.map_current = 'N/D';	
-							//adicionando dados dos resultado na tabela de resultados
-							await admin.database().ref('matches/finish/' + element.val().match_id )
-								.set(JSON.parse( JSON.stringify(match))).then( snap => {
-									admin.database().ref('/matches/live/' + element.val().match_id).set(null);
-								}).catch( error => {
-									console.log(error)
-								})	
-						}else {
-							admin.database().ref('/matches/live/' + element.val().match_id).update(JSON.parse( JSON.stringify(match)));
-						}
-					}	
-				} catch (error) {
-					console.log(error, 'Erro do trycatch snapshot.forEach')
-					console.log('Match: ');				
-				}	
-
+								let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
+								
+								//verifica se a partida tem algum time com score maior que 15						
+								if ( any_team_have_more_than_15_rounds  )								
+								{	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2 
+									if ( Math.abs(Number(map.score_team1) - Number(map.score_team2)) > 1 )
+									{	//gravarei o vencedor! 
+										if ( Number(map.score_team1) > Number(map.score_team2) )
+										{
+											map.winner = { id: matchHLTV.team1.id, name: matchHLTV.team1.name }
+										}else {
+											map.winner = { id: matchHLTV.team2.id, name: matchHLTV.team2.name }
+										}
 										
+										map_current = 'map' + (+index + 2);
+									}								
+								}
+								
+								isNaN(map.score_team1, map.score_team2 ) ? map.finish = false : null;
+
+								maps['map' + (+index + 1)] = JSON.parse( JSON.stringify(map));
+
+								
+							}	
+
+							result.winnerTeam = matchHLTV.winnerTeam;
+							result.maps = maps;
+							result.match_id = matchHLTV.id;
+						
+							// atualização da partida
+							let match = {	
+								match_id  : element.val().match_id,			
+								date      :  matchHLTV.date   ?  moment(new Date( matchHLTV.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : null ,
+								team1_id  :  matchHLTV.team1  ? matchHLTV.team1.id : null ,
+								team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
+								team1_name:  matchHLTV.team1  ? matchHLTV.team1.name : null,
+								team2_name:  matchHLTV.team2  ? matchHLTV.team2.name : null,
+								team1: team1,
+								team2: team2,
+								format    :  matchHLTV.format ? matchHLTV.format : null,
+								event_id  :  matchHLTV.event  ? matchHLTV.event.id : null,
+								title     :  matchHLTV.title  ? matchHLTV.title : null, 
+								event_name:  matchHLTV.event  ? matchHLTV.event.name : null,
+								stars     :  matchHLTV.stars  ? matchHLTV.stars : null,
+								live      :  matchHLTV.live   ? matchHLTV.live : false,   							
+								match_over:  matchHLTV.status  == 'Match over' ?  true : false, 
+								canceled  :  matchHLTV.status  == 'Match over' || 'Live' ?  false : true, 
+								stats_id  :  matchHLTV.statsId,
+								result    :  result,
+								map_current : map_current,
+								validated_bets: false,
+								updated_at:  now      
+							};	
+								
+							if (matchHLTV.status == 'Match over')
+							{			
+								match.map_current = 'N/D';	
+								//adicionando dados dos resultado na tabela de resultados
+								await admin.database().ref('matches/finish/' + element.val().match_id )
+									.set(JSON.parse( JSON.stringify(match))).then( snap => {
+										admin.database().ref('/matches/live/' + element.val().match_id).set(null);
+									}).catch( error => {
+										console.log(error)
+									})	
+							}else {
+								admin.database().ref('/matches/live/' + element.val().match_id).update(JSON.parse( JSON.stringify(match)));
+							}
+						}	
+					} catch (error) {
+						console.log(error, 'Erro do trycatch snapshot.forEach')
+						console.log('Match: ');				
+					}												
 				});
 			
-
-				return snapshot;
+		return snapshot;
 				
-			});	
+	});	
 };
 
 const updateMatchesUpcoming = async () => {
-
 	let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
-	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');	
-	
+	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
+
 	await admin.database().ref('/matches/upcoming').orderByChild('date')
 			.startAt(lastDay)
 			.endAt(now)
 			.limitToFirst(2)
 			.once('value').then( async function(snapshot) {
 				console.log(snapshot.numChildren() + " Founds");
-				if ( snapshot.numChildren() > 0) 
+				
+				if ( snapshot.exists() ) 
 				{
-					snapshot.forEach( async function (element) {
-							let matchHLTV = null;
-
+					Object.entries(snapshot.val()).forEach( async function(element, index){
+							let matchHLTV = null;				
 							try {	
-								matchHLTV = await HLTV.getMatch({id: element.val().match_id}).then((res) => {	
+								matchHLTV = await HLTV.getMatch({id: element[0]}).then((res) => {	
 									//console.log(res);									
 									return res;
 								}).catch(error => {
@@ -699,9 +679,9 @@ const updateMatchesUpcoming = async () => {
 			
 							if ( matchHLTV )
 							{		
-								let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
-								let team2 = await getRankTeamMatch(matchHLTV.team2.id);
-
+								let [team1, team2] = await Promise.all([getRankTeamMatch(matchHLTV.team1.id),
+									  						 	getRankTeamMatch(matchHLTV.team2.id)]);
+								
 								//processo de captura de resultados				
 								let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
 		
@@ -725,7 +705,6 @@ const updateMatchesUpcoming = async () => {
 										map.winner = null;
 										
 										let trocou_lado = Number(map.score_team1) + Number(map.score_team2) >= 15;
-	
 										let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
 										
 										//verifica se a partida tem algum time com score maior que 15						
@@ -755,7 +734,7 @@ const updateMatchesUpcoming = async () => {
 															
 								// atualização da partida
 								let match = {	
-									match_id  : element.val().match_id,			
+									match_id  : element[0],			
 									date      :  matchHLTV.date   ? moment(new Date( matchHLTV.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : null ,
 									team1_id  :  matchHLTV.team1  ? matchHLTV.team1.id : null ,
 									team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
@@ -777,14 +756,29 @@ const updateMatchesUpcoming = async () => {
 									validated_bets: false,
 									updated_at:  now      
 								};	
+								
+								admin.database().ref('/matches/was_read/' + element[0]).update(JSON.parse( JSON.stringify(match)));
+								console.log(matchHLTV.status, ' Match_id = ' + matchHLTV.id)
 
-								await admin.database().ref('/matches/was_read/' + element.val().match_id).update(JSON.parse( JSON.stringify(match)));
+								if ( matchHLTV.status == 'Match postponed' )
+								{
+									await admin.database().ref('/matches/postponed/' + element[0])
+										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
+											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+												console.log(error);
+											});
+										}).catch( error => {
+											console.log(error);
+										});
+								}
 
 								if (matchHLTV.live)
 								{
-									await admin.database().ref('/matches/live/' + element.val().match_id)
+									await admin.database().ref('/matches/live/' + element[0])
 										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element.val().match_id).remove();
+											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+												console.log(error);
+											});
 										}).catch( error => {
 											console.log(error)
 										})												
@@ -792,9 +786,11 @@ const updateMatchesUpcoming = async () => {
 								} else if (matchHLTV.status == 'Match over') {			
 									match.map_current = 'N/D';	
 									//adicionando dados dos resultado na tabela de resultados
-									await admin.database().ref('matches/finish/' + element.val().match_id )
+									await admin.database().ref('matches/finish/' + element[0] )
 										.set(JSON.parse( JSON.stringify(match))).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element.val().match_id).remove();
+											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+												console.log(error);
+											});
 										}).catch( error => {
 											console.log(error)
 										})	
@@ -811,8 +807,37 @@ const updateMatchesUpcoming = async () => {
 
 };
 
+
+const updateMatchesUpcomingRefeature = async () => {
+
+	let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
+	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');	
+	
+	admin.database().ref('/matches/upcoming').orderByChild('updated_at')
+		.startAt(lastDay)
+		.endAt(now)
+		.limitToFirst(3)
+		.once('value').then( async function(snapshot) {
+			console.log(snapshot.numChildren() + " Founds");				
+			if ( snapshot.exists() ) 
+			{
+				// snapshot.forEach( async function(element, index){
+				// 	console.log(element.val())
+				// 	// let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
+				// 	// let team2 = await getRankTeamMatch(matchHLTV.team2.id);
+				// });
+
+				Object.entries(snapshot.val()).forEach( async function(element, index){
+					console.log(element)
+					// let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
+					// let team2 = await getRankTeamMatch(matchHLTV.team2.id);
+				});
+			}
+	});
+};
+
 exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res) => { 
-	let array_matches_live = [];
+	//let array_matches_live = [];
 	let array_matches_today = [];
 	let array_matches_tomorrow = [];		
 	let array_matches = [];
@@ -821,7 +846,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	let tomorrow = moment().tz('America/Sao_Paulo').add(1, 'day').format('YYYY/MM/DD');	
 	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');	
 
-	matches = await admin.database().ref('/matches/upcoming')				
+	matches_promisse = admin.database().ref('/matches/upcoming')				
 				.once('value')
 				.then(snapshot => {	
 					let matchUpcoming = []
@@ -832,15 +857,14 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 							if ( !matchSnapshot.val().live && ( matchSnapshot.val().team1_id && matchSnapshot.val().team2_id ) )
 							{
 								matchUpcoming.push(matchSnapshot.val());
-							}
-							
+							}							
 						});							
 					}
 
 					return matchUpcoming;
 				});	
 						
-	array_matches_live = await admin.database().ref('/matches/live')							
+	array_matches_live_promisse = admin.database().ref('/matches/live')							
 								.once('value')
 								.then(snapshot => {	
 									let matchLive = []
@@ -858,6 +882,10 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 									return matchLive;
 								});	
 
+	let [matches, 
+		array_matches_live ] = await Promise.all(
+											[matches_promisse, array_matches_live_promisse]
+										);	
 
 	matches.forEach( async (item) => {			
 
@@ -904,9 +932,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 		} else { 
 			groups[date].push(match);
 		}
-
 	
-
 		return groups;
 	}, {});
 	
@@ -968,7 +994,6 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	groupArrays.forEach(element => {
 		arrayData.push(element);
 	})
-
 
 	matches_formatted.data = arrayData ;		
 
@@ -1252,5 +1277,24 @@ exports.getRankTeam = functions.https.onRequest( async (req, res) => {
 //     return rating_all_tier;
 // }
 exports.teste = functions.https.onRequest( async (req, res) => { 	
-	await updateMatchesLive();
+	await updateMatchesUpcoming();
+});
+
+exports.getMatchHTLV = functions.https.onRequest( async (req, res) => { 
+	let match = {};
+
+	if ( req.query.id )
+	{
+		await HLTV.getMatch({id: req.query.id}).then((res) => {	
+			//console.log(res);
+			match = res;							
+			return res;
+
+		});
+
+		return res.json(match);
+	}
+	else {
+		return res.json({error: 'id field is required'});
+	}
 });
