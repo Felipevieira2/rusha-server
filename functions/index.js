@@ -124,12 +124,41 @@ const updateBetsMatchFinish = async () => {
 
 								objBet.result = result_bet;
 								//objBet.updated_at = moment(new Date()).tz('America/Sao_Paulo').format('X');
-		
+								let msgNotification = '';
+								let titleNotification = '';
+
+								switch (objBet.result) {
+									case 'win':
+										titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+										' - ' + bet[1].type_bet_name;
+										
+										msgNotification = 'Parabéns!!! Você apostou na' +
+											bet[1].team_name +' e ganhou' + bet[1].reward_points  + ' pontos de score!'; 
+										break;
+									case 'lost':
+										titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+										' - ' + bet[1].type_bet_name;
+										
+										msgNotification = 'Você apostou no(a) ' +
+											bet[1].team_name +' e perdeu' + bet[1].risk_loss_points  + ' pontos de score!'; 
+										break;
+									case 'map not played':
+										titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+										' - ' + bet[1].type_bet_name;
+										
+										msgNotification = bet[1].cost + ' pontos de aposta estornados.' +
+										' O jogo encerrou antes do mapa ser jogado'; 
+										break;
+								
+									default:
+										break;
+								}
+
 								admin.database().ref('/bets/finish/' + bet[0]).update(objBet).then ( async snap => {
 									console.log( bet[0], " aposta inserida nos finalizados");
 									admin.database().ref('/bets/opens/' +  bet[0]).remove().then( async snap => {
 										console.log( bet[0], "Removido bet dos abertos");
-										updateScoreUsers(bet[1], result_bet, bet[0]);
+										updateScoreUsers(bet[1], result_bet, bet[0], msgNotification, titleNotification);
 									}).catch( error => {
 										console.log(error)
 									});			
@@ -172,58 +201,58 @@ const check_bets = async ( bet, match ) => {
 	let bet_result = {												
 			map1 () { 	
 				
-				let map1Played = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+				let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
 
-				if ( map1Played ) { 
+				if ( mapPlayed ) { 
 					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-				}else if ( match.match_over == true && map1Played == false){
+				}else if ( match.match_over == true && mapPlayed == false){
 					result = 'map not played';
 				}	
 
 			},
 			map2 () { 
-				let map1Played = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+				let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
 
-				if ( map1Played ) { 
+				if ( mapPlayed ) { 
 					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-				}else if ( match.match_over == true && map1Played == false){
+				}else if ( match.match_over == true && mapPlayed == false){
 					result = 'map not played';
 				}
 					
 			},
 			map3 () {					
-				let map1Played = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+				let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
 
-				if ( map1Played ) { 
+				if ( mapPlayed ) { 
 					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-				}else if ( match.match_over == true && map1Played == false){
+				}else if ( match.match_over == true && mapPlayed == false){
 					result = 'map not played';
 				}
 			},
 			map4 () { 
-				let map1Played = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+				let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
 
-				if ( map1Played ) { 
+				if ( mapPlayed ) { 
 					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-				}else if ( match.match_over == true && map1Played == false){
+				}else if ( match.match_over == true && mapPlayed == false){
 					result = 'map not played';
 				}			
 			},			
 			map5 () { 
-				let map1Played = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+				let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
 
-				if ( map1Played ) { 
+				if ( mapPlayed ) { 
 					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-				}else if ( match.match_over == true && map1Played == false){
+				}else if ( match.match_over == true && mapPlayed == false){
 					result = 'map not played';
 				}				
 			},			
 			map6 () { 
-				let map1Played = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+				let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
 
-				if ( map1Played ) { 
+				if ( mapPlayed ) { 
 					result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-				}else if ( match.match_over == true && map1Played == false){
+				}else if ( match.match_over == true && mapPlayed == false){
 					result = 'map not played';
 				}			
 			},
@@ -241,7 +270,7 @@ const check_bets = async ( bet, match ) => {
 	return result;
 }
 
-const updateScoreUsers = async (bet, result, betKey) => {
+const updateScoreUsers = async (bet, result, betKey, msgNotification, titleNotification) => {
 	console.log('------------Inicio de gravação dos pontos do usuário---------------');
 	
 	const reward_points = parseInt(bet.reward_points); 
@@ -252,57 +281,54 @@ const updateScoreUsers = async (bet, result, betKey) => {
 		let points_monthly = userSnapUser.val().rank_points_monthly;
 		let points_yearly = userSnapUser.val().rank_points_yearly;	
 		let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
+
 		if( result == 'map not played')
 		{
 			userSnapUser.ref.update({ 
-				bet_points: userSnapUser.val().bet_points + bet.cost,
-				notification: { 
-						bets:{ 
-							[betKey]: {
-								type: 'refund', 
-								msg: 'Aposta estornada!',
-								date: now,
-								status: 'notSent'
-							}
-						}  
-					}
+				bet_points: userSnapUser.val().bet_points + bet.cost		
 			}).catch( error => {
 				console.log(error);
 			});
+
+			let newNotification = {
+				type: 'refund', 
+				title: titleNotification,
+				msg: msgNotification,
+				date: now,
+				status: 'notSent',
+				was_read: false,
+			};
+
+			admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then( snapUser => {});
+			//admin.database().ref('/users/' + user_uid + '/logs/' ).set(newNotification).then( snapUser => {});
 		}else {
 			let new_points_monthly =  result == 'win' ? Number(points_monthly) + Number(reward_points) :  Number(points_monthly) - Number(risk_points);
 			let new_points_yearly =   result == 'win' ? Number(points_yearly) +  Number(reward_points) :  Number(points_yearly) - Number(risk_points);
-			
-				if ( new_points_monthly < 0  )
-				{
-					new_points_monthly = 0;
-				}
-			
-				if ( new_points_yearly < 0  )
-				{
-					new_points_yearly = 0;
-				}
+			let type = result == 'win' ? 'win' : 'lost';			
 
-				console.log({rank_points_monthly_current: Number(points_monthly).toFixed(2)}); 
-				console.log({rank_points_yearly_current:  Number(points_yearly).toFixed(2)})
-
-				console.log({rank_points_monthly_current_new: new_points_monthly}); 
-				console.log({rank_points_yearly_current_new: new_points_yearly})
+			if ( new_points_monthly < 0  ){
+				new_points_monthly = 0;
+			}
+		
+			if ( new_points_yearly < 0 ){
+				new_points_yearly = 0;
+			}
 			
-				userSnapUser.ref.update({ 
-					rank_points_monthly: new_points_monthly.toFixed(2), 
-					rank_points_yearly: new_points_yearly.toFixed(2),
-					notification: { 
-						bets:{ 
-							[betKey]: {
-								type: 'refund', 
-								msg: result == 'win' ? 'Parabéns, você acertou uma aposta!' : 'Aposta perdida, continue tentando!',
-								date: now,
-								status: 'notSent'
-							}
-						}  
-					}  
-				})	
+			userSnapUser.ref.update({ 
+				rank_points_monthly: new_points_monthly.toFixed(0), 
+				rank_points_yearly: new_points_yearly.toFixed(0), 
+			});
+
+			let newNotification = {
+				type: type, 
+				msg: msgNotification,
+				title: titleNotification,
+				date: now,
+				status: 'notSent',
+				was_read: false,
+			};
+
+			admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then( snapUser => {} );	
 		}
 		
 	})		
@@ -326,11 +352,38 @@ const updateBetMapsMatch =  async (match) => {
 						objBet.result = result_bet;
 						//objBet.updated_at = moment(new Date()).tz('America/Sao_Paulo').format('X');
 
+						switch (objBet.result) {
+							case 'win':
+								titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+								' - ' + bet[1].type_bet_name;
+								
+								msgNotification = 'Parabéns!!! Você ganhou a aposta!' +
+								 'Sua aposta: ' +	bet[1].team_name +', pontos ganhos:' + bet[1].reward_points  + ' de score!'; 
+								break;
+							case 'lost':
+								titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+								' - ' + bet[1].type_bet_name;
+								
+								msgNotification = 'Infelizmente você perdeu a aposta. Sua aposta: ' +
+									bet[1].team_name +' pontos perdidos: ' + bet[1].risk_loss_points; 
+								break;
+							case 'map not played':
+								titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+								' - ' + bet[1].type_bet_name;
+								
+								msgNotification = ' O jogo encerrou antes do mapa ser jogado. ' +
+								 bet[1].cost + ' pontos de aposta estornados.'; 
+								break;
+						
+							default:
+								break;
+						}
+
 						admin.database().ref('/bets/finish/' + bet[0]).update(objBet).then ( async snap => {
 							console.log( bet[0], " aposta inserida nos finalizados");
 							admin.database().ref('/bets/opens/' +  bet[0]).remove().then( async snap => {
 								console.log( bet[0], "Removido bet dos abertos");
-								updateScoreUsers(bet[1], result_bet, bet[0]);
+								updateScoreUsers(bet[1], result_bet, bet[0], msgNotification, titleNotification);
 							}).catch( error => {
 								console.log(error)
 							});			
@@ -758,6 +811,7 @@ const updateMatchesUpcoming = async () => {
 								};	
 								
 								admin.database().ref('/matches/was_read/' + element[0]).update(JSON.parse( JSON.stringify(match)));
+								admin.database().ref('/matches/upcoming/' + element[0]).update(JSON.parse( JSON.stringify(match)));
 								console.log(matchHLTV.status, ' Match_id = ' + matchHLTV.id)
 
 								if ( matchHLTV.status == 'Match postponed' )
