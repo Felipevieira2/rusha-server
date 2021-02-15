@@ -6,6 +6,7 @@ const moment = require('moment-timezone');
 const { database } = require('firebase-admin');
 const fs = require('fs');
 const { isNumber } = require('util');
+const { firebaseConfig } = require('firebase-functions');
 
 admin.initializeApp({	
 	credential: admin.credential.cert(serviceAccount),
@@ -74,23 +75,25 @@ const createMatchesRealTimeDatabase = async () => {
 	await Promise.all(matches);	
 };
 
-const updateBetsMatchLive = async () => { 
-	
+const updateBetsMatchLive = async () => { 	
 	admin.database().ref('/matches/live').once('value').then(  function(matchSnap) {	
 		if( matchSnap.exists() )
 		{
 			matchSnap.forEach( function (match) {
+			
 				admin.database().ref('/bets/opens')
 							.orderByChild('match_id')
-							.equalTo(match.val().match_id)
+							.equalTo(Number(match.val().match_id))
 							.once('value')
 							.then( betsSnap => { 
 								if ( betsSnap.exists() )
 								{
 									console.log('Encontrei apostas '); 
-									//console.log(betsSnap.exists() + ' match: ' + match.val().match_id);
+									console.log(betsSnap.exists() + ' match: ' + match.val().match_id);
 									updateBetMapsMatch(match.val());
-								}							
+								}
+								
+								
 							})
 							.catch( error => { 
 								console.log("Erro updatebetsmatchLive " + error) 
@@ -148,8 +151,7 @@ const updateBetsMatchFinish = async () => {
 										
 										msgNotification = bet[1].cost + ' pontos de aposta estornados.' +
 										' O jogo encerrou antes do mapa ser jogado'; 
-										break;
-								
+										break;								
 									default:
 										break;
 								}
@@ -297,6 +299,8 @@ const updateScoreUsers = async (bet, result, betKey, msgNotification, titleNotif
 				date: now,
 				status: 'notSent',
 				was_read: false,
+				first_notification: false,
+				push_notification: false,
 			};
 
 			admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then( snapUser => {});
@@ -326,6 +330,8 @@ const updateScoreUsers = async (bet, result, betKey, msgNotification, titleNotif
 				date: now,
 				status: 'notSent',
 				was_read: false,
+				first_notification: false,
+				push_notification: false,
 			};
 
 			admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then( snapUser => {} );	
@@ -337,7 +343,7 @@ const updateScoreUsers = async (bet, result, betKey, msgNotification, titleNotif
 const updateBetMapsMatch =  async (match) => {
 	try {				
 		let bets = await getBetsOpens(match.match_id);		
-		
+		console.log(match.match_id, 'bets')
 		if ( bets.length > 0 ){	
 			bets.forEach( async function(bet, index) {			
 				let type_bet = await getTypeBet( bet[1].type_bet_id );
@@ -354,21 +360,21 @@ const updateBetMapsMatch =  async (match) => {
 
 						switch (objBet.result) {
 							case 'win':
-								titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+								titleNotification = match.team1_name + ' x ' + match.team2_name +
 								' - ' + bet[1].type_bet_name;
 								
 								msgNotification = 'Parabéns!!! Você ganhou a aposta!' +
 								 'Sua aposta: ' +	bet[1].team_name +', pontos ganhos:' + bet[1].reward_points  + ' de score!'; 
 								break;
 							case 'lost':
-								titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+								titleNotification = match.team1_name + ' x ' + match.team2_name +
 								' - ' + bet[1].type_bet_name;
 								
 								msgNotification = 'Infelizmente você perdeu a aposta. Sua aposta: ' +
 									bet[1].team_name +' pontos perdidos: ' + bet[1].risk_loss_points; 
 								break;
 							case 'map not played':
-								titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+								titleNotification = match.team1_name + ' x ' + match.team2_name +
 								' - ' + bet[1].type_bet_name;
 								
 								msgNotification = ' O jogo encerrou antes do mapa ser jogado. ' +
@@ -415,7 +421,7 @@ const updateBetMapsMatch =  async (match) => {
 		}else {
 			await admin.database().ref('/matches/finish')
 				.orderByChild('match_id')
-				.equalTo(match.match_id)
+				.equalTo(Number(match.match_id))
 				.once('value')
 				.then( function(matchSnap) {	
 					//se estiver finalizada a partida eu fecho e confirmo que nao sobrou nenhuma aposta para avaliação
@@ -437,8 +443,9 @@ const updateBetMapsMatch =  async (match) => {
 
 
 const getBetsOpens = async (match_id) => {
-	return await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(match_id)
+	return await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match_id))
 		.once('value').then( function (snapBets) {
+			console.log(snapBets.val(), 'uepa')
 			if ( snapBets.exists() ) {	
 				return Object.entries(snapBets.val());
 			}else{ 					
@@ -506,7 +513,7 @@ const check_bet_result = async (bet, match, type_bet) => {
 
 
 const check_match_have_bets =  async (match) => {
-	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(match.match_id).once('value').then( async snapBets => {
+	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match.match_id)).once('value').then( async snapBets => {
 		if ( snapBets.exists() ) {				
 			return false;							
 		}else {
@@ -528,7 +535,7 @@ const getUsersDatabaseRealtime = async () => {
 }
 
 const is_check_bet_by_match_found = async (match) => {
-	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(match.match_id).once('value').then( async snap => { 						
+	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match.match_id)).once('value').then( async snap => { 						
 		snap.forEach( async bet => { 			
 			let typeBet = await getTypeBet(bet.val().type_bet_id);
 			let betObject = bet.val();											
@@ -559,7 +566,7 @@ const is_check_bet_by_match_found = async (match) => {
 const getTypeBet = async (type_bet_id) => {	
 	return await admin.database().ref('/bet-types')
 								.orderByChild('id')
-								.equalTo(type_bet_id)
+								.equalTo(Number(type_bet_id))
 								.limitToFirst(1)
 								.once('value')
 								.then( snap => {
@@ -826,6 +833,20 @@ const updateMatchesUpcoming = async () => {
 										});
 								}
 
+								if ( matchHLTV.status == 'Match deleted' )
+								{
+									await admin.database().ref('/matches/deleted/' + element[0])
+										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
+											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+												console.log(error);
+											});
+										}).catch( error => {
+											console.log(error);
+										});
+								}
+
+								console.log(matchHLTV.status)
+
 								if (matchHLTV.live)
 								{
 									await admin.database().ref('/matches/live/' + element[0])
@@ -961,7 +982,20 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 		}		
 
 	});
+	
+	array_matches_today.sort((a, b) => { 
+		const now = moment().tz('America/Sao_Paulo');
 
+		return moment(new Date(a.date)).tz('America/Sao_Paulo').diff(now) - moment(new Date(b.date)).tz('America/Sao_Paulo').diff(now);
+	});
+
+	array_matches.sort((a, b) => { 
+		const now = moment().tz('America/Sao_Paulo');
+
+		return moment(new Date(a.date)).tz('America/Sao_Paulo').diff(now) - moment(new Date(b.date)).tz('America/Sao_Paulo').diff(now);
+	});
+
+	console.log(array_matches);
 	// this gives an object with dates as keys
 	const groups = array_matches.reduce((groups, match) => {
 		const date = match.date.substring(0, 10);
@@ -991,6 +1025,9 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	}, {});
 	
 	// Edit: to add it in the array format instead
+
+
+
 	const groupArrays = Object.keys(groups).map((date) => {
 		return {  
 			title: date.substring(8, 10)+ '/' + date.substring(5, 7) + '/'  + date.substring(0, 4), 
@@ -1061,7 +1098,7 @@ exports.createMatchesSchedule = functions.pubsub.schedule('*/8 * * * *').onRun( 
 	return null;
 });
 
-exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/10 * * * *').onRun( async (context) => {
+exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/6 * * * *').onRun( async (context) => {
 	await updateMatchesUpcoming();
 
 	console.log('updateMatchesUpcoming will be run every 10 minutes!');
@@ -1072,6 +1109,12 @@ exports.updateMatchesLiveSchedule = functions.pubsub.schedule('*/3 * * * *').onR
 	await updateMatchesLive();
 
 	console.log('updateMatchesLive will be run every 3 minutes!');
+	return null;
+});
+exports.updatePlayersTeamSchedule = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
+	await getTeamsWithoutUpdatedPlayer();
+
+	console.log('updateBetsMatchLive will be run every 3 minutes!');
 	return null;
 });
 
@@ -1200,7 +1243,7 @@ const getRankTeamMatch = async (team_id) => {
 					if ( diff >= 7 )
 					{
 						team = await getTeamHTLV(team_id);
-						team.updated_at = team.updated_at =  moment().tz('America/Sao_Paulo').format();;
+						team.updated_at = team.updated_at =  moment().tz('America/Sao_Paulo').format();
 						await admin.database().ref('/teams/' + team.id).update(JSON.parse(JSON.stringify(team)));
 					}
 				}else {
@@ -1272,66 +1315,8 @@ exports.getRankTeam = functions.https.onRequest( async (req, res) => {
     return res.status(200).send(team);
 });
 
-// const rankByTier = () => { 
-
-//     let rating_range = {
-//         tier_1: Array(3).fill(1).map((x, y) => {   
-//             return {
-//                 rank: x + y,
-//                 tier: 1,
-//                 percent: 40
-//             } 
-//         }),
-//         tier_2: Array(4).fill(4).map((x, y) => {   
-//             return {
-//                 rank: x + y,
-//                 tier: 2,
-//                 percent: 35
-//             } 
-//         }),
-//         tier_3: Array(3).fill(8).map((x, y) => {   
-//             return {
-//                 rank: x + y,
-//                 tier: 3,
-//                 percent: 30
-//             } 
-//         }),
-//         tier_4: Array(10).fill(11).map((x, y) => {   
-//             return {
-//                 rank: x + y,
-//                 tier: 4,
-//                 percent: 25
-//             } 
-//         }),
-//         tier_5: Array(10).fill(21).map((x, y) => {   
-//             return {
-//                 rank: x + y,
-//                 tier: 5,
-//                 percent: 20
-//             } 
-//         }),
-//         tier_6: Array(70).fill(31).map((x, y) => {   
-//             return {
-//                 rank: x + y,
-//                 tier: 6,
-//                 percent: 15
-//             } 
-//         }),        
-//     }
-
-//     let rating_all_tier = [ ];
-
-//     rating_range.tier_1.forEach ( element => {  rating_all_tier.push(element) } );
-//     rating_range.tier_2.forEach ( element => {  rating_all_tier.push(element) } );
-//     rating_range.tier_3.forEach ( element => {  rating_all_tier.push(element) } );
-//     rating_range.tier_4.forEach ( element => {  rating_all_tier.push(element) } );
-//     rating_range.tier_5.forEach ( element => {  rating_all_tier.push(element) } );
-//     rating_range.tier_6.forEach ( element => {  rating_all_tier.push(element) } );
-
-//     return rating_all_tier;
-// }
 exports.teste = functions.https.onRequest( async (req, res) => { 	
-	await updateMatchesUpcoming();
+	await updateBetsMatchFinish();
 });
 
 exports.getMatchHTLV = functions.https.onRequest( async (req, res) => { 
@@ -1352,3 +1337,56 @@ exports.getMatchHTLV = functions.https.onRequest( async (req, res) => {
 		return res.json({error: 'id field is required'});
 	}
 });
+
+const updateLocationPlayer = async (player_id, team_id, index) =>  { 
+
+	let player = await HLTV.getPlayer({id: player_id}).then((res) => {										
+		return res;
+	});
+	
+	admin.database().ref('/teams/' + team_id + '/players/' + index).update({country: player.country.name});
+}
+
+const getTeamsWithoutUpdatedPlayer = async () =>  { 
+	admin.database().ref('/teams')
+		.orderByChild('players_countrys_updated')
+		.equalTo(false).limitToFirst(3)
+		.once('value').then( snap => { 
+
+			if(snap.exists())
+			{				
+				snap.forEach ( team => {					
+					let playersWithoutCountry = Object.entries(team.child('players').val()).filter( e => {
+						
+						return e[1].country == undefined;
+					});
+					
+					if ( playersWithoutCountry.length > 0 )
+					{
+						playersWithoutCountry.forEach( player => {
+							console.log('atualizando o time ', team.val().id)	
+							updateLocationPlayer(player[1].id, team.val().id, player[0]);
+							
+						});
+					}else{
+
+						let brazilianPlayers = Object.entries(team.child('players').val()).filter( e => {
+						
+							return e[1].country == 'Brazil';
+						});
+
+						if ( brazilianPlayers > 0 )
+						{
+							team.ref.update({player_br: true})					
+						}else{
+							team.ref.update({player_br: false})	
+						}
+
+						team.ref.update({players_countrys_updated: true, updated_at: moment().tz('America/Sao_Paulo').format() });			
+					}	
+					
+				})
+			}
+	});
+
+}
