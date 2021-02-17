@@ -3,10 +3,6 @@ const admin = require('firebase-admin');
 const { HLTV, HLTVFactory } = require('hltv');
 const serviceAccount = require("./serviceAccountKey.json");
 const moment = require('moment-timezone');
-const { database } = require('firebase-admin');
-const fs = require('fs');
-const { isNumber } = require('util');
-const { firebaseConfig } = require('firebase-functions');
 
 admin.initializeApp({	
 	credential: admin.credential.cert(serviceAccount),
@@ -18,183 +14,317 @@ admin.firestore().settings({ ignoreUndefinedProperties: true })
 
 const createMatchesRealTimeDatabase = async () => {
     //consulto partidas pelo package non-oficial da HLTV
-    const matches = await HLTV.getMatches().then((res) => {   		  
-        return res;
-	});	
+	let result = true;
 
-	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');	
+	try {			
+		const matches = await HLTV.getMatches().then((res) => {   		  
+			return res;
+		});
 
-	matches.forEach(async (item, idx) => {
-
-		if ( item.team1 && item.team2  )
-		{	
-			let [team1, team2] = await Promise.all([getRankTeamMatch(item.team1.id),
-				getRankTeamMatch(item.team2.id)]);
-
-			let matchExistInLive = await admin.database().ref('/matches/live/' + item.id).once('value').then(function(snapshot) {
-				return snapshot.exists();
-			})
-
-			let matchExistInFinish = await admin.database().ref('/matches/finish/' + item.id).once('value').then(function(snapshot) {
-				return snapshot.exists();
-			})
-
-			admin.database().ref('/matches/upcoming/' + item.id).once('value').then( async function(snapshot) {							
-				if ((!matchExistInLive && !matchExistInFinish)  && !snapshot.exists())
-				{  					
-					let match = {
-						match_id  : item.id,
-						date      : item.date ? moment(new Date( item.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : '' ,
-						team1_id  : typeof item.team1.id === 'undefined' ?  ''  : item.team1.id  ,
-						team2_id  : typeof item.team2.id === 'undefined' ?  '' : item.team2.id ,
-						team1_name: item.team1  ? item.team1.name : '',
-						team2_name: item.team2  ? item.team2.name : '',
-						team1: team1,
-						team2: team2,
-						format    : item.format ? item.format : '',
-						event_id  : typeof item.event.id === 'undefined' ? '' : item.event.id,
-						title     : item.title ? item.title : '', 
-						event_name: item.event.name === 'undefined'  ? '' : item.event.name,
-						stars     : item.stars ? item.stars : '',
-						live      : item.live ? item.live : false,   
-						maps      : item.map ?  JSON.stringify(item.map) : '',
-						match_over: false,
-						validated_bets: false,
-						updated_at: today       
-					};
-					
-				 	admin.database().ref('matches/upcoming/' + item.id ).update(JSON.parse( JSON.stringify(match)));
-					
-				}else {
-					console.log('partida já existe no banco de dados.')
-				}
-			});						
-		}
-	})	
+		let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');	
 		
-	await Promise.all(matches);	
+		matches.forEach(async (item, idx) => {
+
+			if ( item.team1 && item.team2  )
+			{	
+				let matchExistInLive = await admin.database().ref('/matches/live/' + item.id).once('value').then(function(snapshot) {
+					return snapshot.exists();
+				});
+
+				let matchExistInFinish = await admin.database().ref('/matches/finish/' + item.id).once('value').then(function(snapshot) {
+					return snapshot.exists();
+				});
+				
+				let match = {
+					match_id  : item.id,
+					date      : item.date ? moment(new Date( item.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : '' ,
+					team1_id  : typeof item.team1.id === 'undefined' ?  ''  : item.team1.id  ,
+					team2_id  : typeof item.team2.id === 'undefined' ?  '' : item.team2.id ,
+					team1_name: item.team1  ? item.team1.name : '',
+					team2_name: item.team2  ? item.team2.name : '',
+					team1: item.team1  ? item.team1 : '',
+					team2: item.team1  ? item.team1 : '',
+					format    : item.format ? item.format : '',
+					event_id  : typeof item.event.id === 'undefined' ? '' : item.event.id,
+					title     : item.title ? item.title : '', 
+					event_name: item.event.name === 'undefined'  ? '' : item.event.name,
+					stars     : item.stars ? item.stars : '',
+					live      : item.live ? item.live : false,   
+					maps      : item.map ?  JSON.stringify(item.map) : '',
+					match_over: false,						
+					updated_at: today       
+				};
+				
+				admin.database().ref('/matches/upcoming/' + item.id).once('value').then( async function(snapshot) {							
+					if ((!matchExistInLive && !matchExistInFinish) && (!snapshot.exists() && !item.live))
+					{  											
+						admin.database().ref('matches/upcoming/' + item.id ).update(JSON.parse( JSON.stringify(match)));
+						
+					}else if( (item.live == true && !matchExistInLive ) && !snapshot.exists() ){
+
+							matchHLTV = await HLTV.getMatch({id: item.id}).then((res) => {	
+								//console.log(res);									
+								return res;
+							}).catch(error => {								
+								console.log(error, 'Erro getMatch HLTV');
+								response = false;	
+							});		
+							console.log(matchHLTV, 'matchHLTV')
+							if ( matchHLTV )
+							{		
+								let [team1, team2] = await Promise.all([getRankTeamMatch(matchHLTV.team1.id),
+									getRankTeamMatch(matchHLTV.team2.id)]);
+	
+								//processo de captura de resultados				
+								let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');		
+							
+								let result = {};
+								let maps = {};
+								let map_current = 'map1';
+							
+	
+								for (let index = 0; index < gameTypeBestOf; index++) {
+								
+									let map = {};	
+	
+									if ( typeof matchHLTV.maps[index].result !== 'undefined') 
+									{
+										map.name = matchHLTV.maps[index].name;			
+										map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
+										map.score_team1 = matchHLTV.maps[index].result.substring(0, 5).split(":")[0].replace(/\D/g,'');
+										map.score_team2 = matchHLTV.maps[index].result.substring(0, 5).split(":")[1].replace(/\D/g,'');
+										map.statsId = matchHLTV.maps[index].statsId;
+										map.winner = null;
+									}
+																
+									//console.log( Number(map.score_team1) + Number(map.score_team2) >= 15, '' );
+	
+									let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
+									
+									//verifica se a partida tem algum time com score maior que 15						
+									if ( any_team_have_more_than_15_rounds  )								
+									{	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2 
+										if ( Math.abs(Number(map.score_team1) - Number(map.score_team2)) > 1 )
+										{	//gravarei o vencedor! 
+											if ( Number(map.score_team1) > Number(map.score_team2) )
+											{
+												map.winner = { id: matchHLTV.team1.id, name: matchHLTV.team1.name }
+											}else {
+												map.winner = { id: matchHLTV.team2.id, name: matchHLTV.team2.name }
+											}
+											
+											map_current = 'map' + (+index + 2);
+										}								
+									}
+									
+									isNaN(map.score_team1, map.score_team2 ) ? map.finish = false : null;
+	
+									maps['map' + (+index + 1)] = JSON.parse( JSON.stringify(map));
+	
+									
+								}	
+	
+								result.winnerTeam = matchHLTV.winnerTeam;
+								result.maps = maps;
+								result.match_id = matchHLTV.id;
+							
+								// atualização da partida
+								let match = {	
+									match_id  : item.id,			
+									date      :  matchHLTV.date   ?  moment(new Date( matchHLTV.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : null ,
+									team1_id  :  matchHLTV.team1  ? matchHLTV.team1.id : null ,
+									team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
+									team1_name:  matchHLTV.team1  ? matchHLTV.team1.name : null,
+									team2_name:  matchHLTV.team2  ? matchHLTV.team2.name : null,
+									team1: team1,
+									team2: team2,
+									format    :  matchHLTV.format ? matchHLTV.format : null,
+									event_id  :  matchHLTV.event  ? matchHLTV.event.id : null,
+									title     :  matchHLTV.title  ? matchHLTV.title : null, 
+									event_name:  matchHLTV.event  ? matchHLTV.event.name : null,
+									stars     :  matchHLTV.stars  ? matchHLTV.stars : null,
+									live      :  matchHLTV.live   ? matchHLTV.live : false,   							
+									match_over:  matchHLTV.status  == 'Match over' ?  true : false, 
+									canceled  :  matchHLTV.status  == 'Match over' || 'Live' ?  false : true, 
+									stats_id  :  matchHLTV.statsId,
+									result    :  result,
+									map_current : map_current,
+									validated_bets: false,
+									updated_at:  now      
+								
+								};
+								
+								admin.database().ref('/matches/live/' + item.id).update(JSON.parse( JSON.stringify(match))).then( snap => {
+									if ( snapshot.exists() )
+									{
+										admin.database().ref('/matches/upcoming/' + item.id).remove().catch( error => {
+											console.log(error);
+										});
+									}
+									
+								}).catch( error => {
+									console.log(error)
+								})
+						}	
+						
+					}																
+				});						
+			}			
+		})	
+
+		await Promise.all(matches);	
+	} catch (error) {
+		console.log(error);
+		result = false;
+	}	
+	
+	return result;
 };
 
-const updateBetsMatchLive = async () => { 	
-	admin.database().ref('/matches/live').once('value').then(  function(matchSnap) {	
-		if( matchSnap.exists() )
-		{
-			matchSnap.forEach( function (match) {
-			
-				admin.database().ref('/bets/opens')
-							.orderByChild('match_id')
-							.equalTo(Number(match.val().match_id))
-							.once('value')
-							.then( betsSnap => { 
-								if ( betsSnap.exists() )
-								{
-									console.log('Encontrei apostas '); 
-									console.log(betsSnap.exists() + ' match: ' + match.val().match_id);
-									updateBetMapsMatch(match.val());
-								}
-								
-								
-							})
-							.catch( error => { 
-								console.log("Erro updatebetsmatchLive " + error) 
-							});
-				
-			});
-		}
-	}).catch ( error => {
+const updateBetsMatchLive = async () => {
+	let response = true;
+	
+	try {
+		admin.database().ref('/matches/live').once('value').then(  function(matchSnap) {	
+			if( matchSnap.exists() )
+			{
+				matchSnap.forEach( function (match) {			
+					admin
+					.database()
+					.ref('/bets/opens')
+					.orderByChild('match_id')
+					.equalTo(Number(match.val().match_id))
+					.once('value')
+					.then( betsSnap => { 
+						if ( betsSnap.exists() )
+						{
+							console.log('Encontrei apostas '); 
+							console.log(betsSnap.exists() + ' match: ' + match.val().match_id);
+							updateBetMapsMatch(match.val());
+						}						
+						
+					})
+					.catch( error => { 
+						console.log("Erro updatebetsmatchLive " + error) 
+						response = false;
+					});
+		
+				});
+			}
+		}).catch ( error => {
+			console.log(error);
+			response = false;
+		})
+	}catch (error) {
 		console.log(error);
-	})
+		response = false;
+	}
+
+	return response;
 }	
 
 const updateBetsMatchFinish = async () => {
-	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
-	await admin.database().ref('/bets/opens')
-		.orderByChild('date_match')
-		.endAt(now)	
-		.once('value')
-		.then( async function(betsSnap) {	
-			if( betsSnap.exists() )
-			{		
-				let arrayBetOpens = Object.entries(betsSnap.toJSON());	
+	let response = true; 
+	
+	try {		
+		let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
+		await admin.database().ref('/bets/opens')
+			.orderByChild('date_match')
+			.endAt(now)	
+			.once('value')
+			.then( async function(betsSnap) {	
+				if( betsSnap.exists() )
+				{		
+					let arrayBetOpens = Object.entries(betsSnap.toJSON());	
 
-				arrayBetOpens.forEach( bet => { 
-					admin.database().ref('/matches/finish/' + bet[1].match_id)
-						.once('value')
-						.then( async function(matchSnap) {						
-							if(matchSnap.exists()) { 																
-								let result_bet = await check_bets(bet[1], matchSnap.val());
-								let objBet = bet[1];
+					arrayBetOpens.forEach( bet => { 
+						admin.database().ref('/matches/finish/' + bet[1].match_id)
+							.once('value')
+							.then( async function(matchSnap) {						
+								if(matchSnap.exists()) { 																
+									let result_bet = await check_bets(bet[1], matchSnap.val());
+									let objBet = bet[1];
 
-								objBet.result = result_bet;
-								//objBet.updated_at = moment(new Date()).tz('America/Sao_Paulo').format('X');
-								let msgNotification = '';
-								let titleNotification = '';
+									objBet.result = result_bet;
+									//objBet.updated_at = moment(new Date()).tz('America/Sao_Paulo').format('X');
+									let msgNotification = '';
+									let titleNotification = '';
 
-								switch (objBet.result) {
-									case 'win':
-										titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
-										' - ' + bet[1].type_bet_name;
-										
-										msgNotification = 'Parabéns!!! Você apostou na' +
-											bet[1].team_name +' e ganhou' + bet[1].reward_points  + ' pontos de score!'; 
-										break;
-									case 'lost':
-										titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
-										' - ' + bet[1].type_bet_name;
-										
-										msgNotification = 'Você apostou no(a) ' +
-											bet[1].team_name +' e perdeu' + bet[1].risk_loss_points  + ' pontos de score!'; 
-										break;
-									case 'map not played':
-										titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
-										' - ' + bet[1].type_bet_name;
-										
-										msgNotification = bet[1].cost + ' pontos de aposta estornados.' +
-										' O jogo encerrou antes do mapa ser jogado'; 
-										break;								
-									default:
-										break;
-								}
+									switch (objBet.result) {
+										case 'win':
+											titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+											' - ' + bet[1].type_bet_name;
+											
+											msgNotification = 'Parabéns!!! Você apostou na' +
+												bet[1].team_name +' e ganhou' + bet[1].reward_points  + ' pontos de score!'; 
+											break;
+										case 'lost':
+											titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+											' - ' + bet[1].type_bet_name;
+											
+											msgNotification = 'Você apostou no(a) ' +
+												bet[1].team_name +' e perdeu' + bet[1].risk_loss_points  + ' pontos de score!'; 
+											break;
+										case 'map not played':
+											titleNotification = matchSnap.val().team1_name + ' x ' + matchSnap.val().team2_name +
+											' - ' + bet[1].type_bet_name;
+											
+											msgNotification = bet[1].cost + ' pontos de aposta estornados.' +
+											' O jogo encerrou antes do mapa ser jogado'; 
+											break;								
+										default:
+											break;
+									}
 
-								admin.database().ref('/bets/finish/' + bet[0]).update(objBet).then ( async snap => {
-									console.log( bet[0], " aposta inserida nos finalizados");
-									admin.database().ref('/bets/opens/' +  bet[0]).remove().then( async snap => {
-										console.log( bet[0], "Removido bet dos abertos");
-										updateScoreUsers(bet[1], result_bet, bet[0], msgNotification, titleNotification);
+									admin.database().ref('/bets/finish/' + bet[0]).update(objBet).then ( async snap => {
+										console.log( bet[0], " aposta inserida nos finalizados");
+										admin.database().ref('/bets/opens/' +  bet[0]).remove().then( async snap => {
+											console.log( bet[0], "Removido bet dos abertos");
+											updateScoreUsers(bet[1], result_bet, bet[0], msgNotification, titleNotification);
+										}).catch( error => {
+											console.log(error);
+											response = false;
+										});			
 									}).catch( error => {
-										console.log(error)
-									});			
-								}).catch( error => {
-									console.log(error)
-								})		
+										console.log(error);
+										response = false;
+									})		
+									
+									let pathUserBetsFinishes = '/user-bets/' + bet[1].user_uid + '/finish/' + bet[0];
+									let pathUserBetsOpens = '/user-bets/' + bet[1].user_uid + '/opens/' + bet[0];
 								
-								let pathUserBetsFinishes = '/user-bets/' + bet[1].user_uid + '/finish/' + bet[0];
-								let pathUserBetsOpens = '/user-bets/' + bet[1].user_uid + '/opens/' + bet[0];
+									await admin.database().ref(pathUserBetsFinishes).update(objBet).then ( async snap => {
+										console.log('adicionado a aposta user-bets finalizados');
+										await admin.database().ref(pathUserBetsOpens).remove().then( async snap => {
+											console.log("Removido aposta user-bets opens");
+										} ).catch( error => {
+											console.log(error)
+											response = false;
+										})				
+										}).catch( error => {
+											console.log(error)
+											response = false; 
+										})
+									let bets = await getBetsOpens(matchSnap.val().match_id);	
+								
+									if( bets.length == 0 ){ matchSnap.ref.update({ validated_bets: true  })	 }
+								}
 							
-								await admin.database().ref(pathUserBetsFinishes).update(objBet).then ( async snap => {
-									console.log('adicionado a aposta user-bets finalizados');
-									await admin.database().ref(pathUserBetsOpens).remove().then( async snap => {
-										console.log("Removido aposta user-bets opens");
-									} ).catch( error => {
-										console.log(error)
-									})				
-									}).catch( error => {
-										console.log(error)
-									})
-								let bets = await getBetsOpens(matchSnap.val().match_id);	
-								console.log(matchSnap.val().match_id, 'teste')
-								if( bets.length == 0 ){ matchSnap.ref.update({ validated_bets: true  })	 }
-							}
-						
-						});
-				});
+							});
+					});				
+				}
 
-			
-			}
+		}).catch ( error => {
+			console.log(error);
+			response = false;
+		})
 
-	}).catch ( error => {
+	} catch (error) {
 		console.log(error);
-	})
+		response = false;
+	}
+
+	return response;
 }	
 		
 const check_bets = async ( bet, match ) => {
@@ -341,6 +471,7 @@ const updateScoreUsers = async (bet, result, betKey, msgNotification, titleNotif
 }
 
 const updateBetMapsMatch =  async (match) => {
+	let response = true;	
 	try {				
 		let bets = await getBetsOpens(match.match_id);		
 		console.log(match.match_id, 'bets')
@@ -406,9 +537,11 @@ const updateBetMapsMatch =  async (match) => {
 								console.log("Removido aposta user-bets opens");
 							} ).catch( error => {
 								console.log(error)
+								response = false;	
 							})				
 							}).catch( error => {
 								console.log(error)
+								response = false;	
 							})	
 					}else {
 						console.log('aposta nao possuí vencedor ainda')
@@ -438,7 +571,10 @@ const updateBetMapsMatch =  async (match) => {
 	} catch (error) {
 		console.log('Mensagem: ' + error);
 		console.log('matche: ' + match);
+		response = false;	
 	}
+
+	return response;
 }
 
 
@@ -457,21 +593,6 @@ const getBetsOpens = async (match_id) => {
 		return [];		
 	});	
 }
-// const updateBetFinish =  async (match, matchRef) => {
-// 	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(match.match_id).once('value').then( async snapBets => {
-			
-// 		if ( snapBets.exists() ) {		
-			
-// 			for(let i = 0;  snapBets.numChildren() <= i; i++)
-// 			{
-				
-// 			}
-// 		}else{			
-// 			matchRef.update({validated_bets: true})	
-// 			console.log('Atualizei')			
-// 		}
-// 	});
-// }
 
 const check_bet_result = async (bet, match, type_bet) => {
 	let win = false;
@@ -511,17 +632,6 @@ const check_bet_result = async (bet, match, type_bet) => {
 	return win;	
 }
 
-
-const check_match_have_bets =  async (match) => {
-	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match.match_id)).once('value').then( async snapBets => {
-		if ( snapBets.exists() ) {				
-			return false;							
-		}else {
-			return true;
-		}
-	});
-}
-
 const getUserSnapUser = async (user_uid) => {
 	return await admin.database().ref('/users/' + user_uid).once('value').then( async snapUser => { 			
 		return snapUser;
@@ -534,42 +644,13 @@ const getUsersDatabaseRealtime = async () => {
 	});
 }
 
-const is_check_bet_by_match_found = async (match) => {
-	await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match.match_id)).once('value').then( async snap => { 						
-		snap.forEach( async bet => { 			
-			let typeBet = await getTypeBet(bet.val().type_bet_id);
-			let betObject = bet.val();											
-			let isWinBet =  match.result.winnerTeam.id ==  bet.val().team_id;	
-
-			await admin.database().ref('/users/' + bet.val().user_uid).once('value').then( async snapUser => { 			
-				let newPointsRankUser = 
-					{ 
-						rank_points_monthly : parseInt(snapUser.val().rank_points_monthly) + parseInt(bet.val().reward_points),
-						rank_points_yearly : parseInt(snapUser.val().rank_points_yearly) + parseInt(bet.val().reward_points)
-					}
-
-				await snapUser.ref.update(newPointsRankUser);
-				await bet.ref.update({result : 'win'})
-				
-				betObject.result = 'win';
-
-				await admin.database().ref('bets/finish/'+ bet.ref.key ).set(betObject);
-				// //await admin.database().ref('bets/opens/'+ bet.ref.key ).remove();	
-
-				await admin.database().ref('user-bets/'+ bet.val().user_uid + '/finish/'  + bet.ref.key ).set(betObject);
-				// //await admin.database().ref('user-bets/opens/'+ bet.val().user_uid + '/'  + bet.ref.key ).remove();
-			});		
-		});																																																										
-	});	
-}
-
 const getTypeBet = async (type_bet_id) => {	
 	return await admin.database().ref('/bet-types')
-								.orderByChild('id')
-								.equalTo(Number(type_bet_id))
-								.limitToFirst(1)
-								.once('value')
-								.then( snap => {
+					.orderByChild('id')
+					.equalTo(Number(type_bet_id))
+					.limitToFirst(1)
+					.once('value')
+					.then( snap => {
 
 		let betType = null;
 
@@ -585,6 +666,8 @@ const getTypeBet = async (type_bet_id) => {
 }
 //atualiza partidas que estão live no banco de dados.
 const updateMatchesLive =  async () => {
+	let response = true;
+
 	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
 	await admin.database().ref('/matches/live')
 		.orderByChild('updated_at').limitToFirst(4)
@@ -596,6 +679,7 @@ const updateMatchesLive =  async () => {
 					if ( element.val().match_id === 'undefined' )
 					{
 						console.log(element, 'erro');
+						
 						return 
 					}
 
@@ -606,18 +690,22 @@ const updateMatchesLive =  async () => {
 						}).catch(error => {
 							console.log(element.val())
 							console.log(error, 'Erro getMatch HLTV');
+							response = false;	
 						});		
 		
 						if ( matchHLTV )
 						{		
 							let team1 = await getRankTeamMatch(matchHLTV.team1.id);	
 							let team2 = await getRankTeamMatch(matchHLTV.team2.id);		
+						
+
 							//processo de captura de resultados				
-							let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
+							let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');	
 
 							let result = {};
 							let maps = {};
 							let map_current = 'map1';
+						
 
 							for (let index = 0; index < gameTypeBestOf; index++) {
 							
@@ -705,181 +793,192 @@ const updateMatchesLive =  async () => {
 						}	
 					} catch (error) {
 						console.log(error, 'Erro do trycatch snapshot.forEach')
-						console.log('Match: ');				
+						response = false;				
 					}												
 				});
 			
 		return snapshot;
 				
 	});	
+
+	return response;
 };
 
 const updateMatchesUpcoming = async () => {
-	let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
-	let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
+	let response = true;
 
-	await admin.database().ref('/matches/upcoming').orderByChild('date')
-			.startAt(lastDay)
-			.endAt(now)
-			.limitToFirst(2)
-			.once('value').then( async function(snapshot) {
-				console.log(snapshot.numChildren() + " Founds");
+	try {
+		//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
+		let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');		
+
+		await admin.database().ref('/matches/upcoming')
+				.orderByChild('updated_at')
+				.limitToFirst(2)
+				.once('value').then( async function(snapshot) {				
+					if ( snapshot.exists() ) 
+					{
+						Object.entries(snapshot.val()).forEach( async function(element, index){
+								let matchHLTV = null;				
+								try {	
+									matchHLTV = await HLTV.getMatch({id: element[0]}).then((res) => {	
+										//console.log(res);									
+										return res;
+									}).catch(error => {
+										console.log(error, 'Erro getMatch HLTV');
+										response = false;
+									});		
 				
-				if ( snapshot.exists() ) 
-				{
-					Object.entries(snapshot.val()).forEach( async function(element, index){
-							let matchHLTV = null;				
-							try {	
-								matchHLTV = await HLTV.getMatch({id: element[0]}).then((res) => {	
-									//console.log(res);									
-									return res;
-								}).catch(error => {
-									console.log(error, 'Erro getMatch HLTV');
-								});		
-			
-							if ( matchHLTV )
-							{		
-								let [team1, team2] = await Promise.all([getRankTeamMatch(matchHLTV.team1.id),
-									  						 	getRankTeamMatch(matchHLTV.team2.id)]);
-								
-								//processo de captura de resultados				
-								let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
-		
-								let result = {};
-								let maps = {};
-								let map_current = 'N/D';
-
-								if (matchHLTV.live)
-								{
-									map_current = 'map1';
-
-									for (let index = 0; index < gameTypeBestOf; index++) {								
-										let map = {};				
-										let winner = {};
-	
-										map.name = matchHLTV.maps[index].name;			
-										map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
-										map.score_team1 = matchHLTV.maps[index].result.substring(0, 5).split(":")[0].replace(/\D/g,'');
-										map.score_team2 = matchHLTV.maps[index].result.substring(0, 5).split(":")[1].replace(/\D/g,'');
-										map.statsId = matchHLTV.maps[index].statsId;
-										map.winner = null;
-										
-										let trocou_lado = Number(map.score_team1) + Number(map.score_team2) >= 15;
-										let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
-										
-										//verifica se a partida tem algum time com score maior que 15						
-										if ( any_team_have_more_than_15_rounds  )								
-										{	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2, 
-											if ( Math.abs(Number(map.score_team1) - Number(map.score_team2)) > 1 )
-											{	//gravarei o vencedor! 
-												if ( Number(map.score_team1) > Number(map.score_team2) )
-												{
-													map.winner = { id: matchHLTV.team1.id, name: matchHLTV.team1.name }
-												}else {
-													map.winner = { id: matchHLTV.team2.id, name: matchHLTV.team2.name }
-												}
-												
-												map_current = 'map' + (+index + 2);
-											}								
-										}
-										
-										isNaN(map.score_team1, map.score_team2 ) ? map.winner = '-' : null;
-										maps['map' + (+index + 1)] = JSON.parse( JSON.stringify(map));
-									}	
-			
-									result.winnerTeam = matchHLTV.winnerTeam;
-									result.maps = maps;
-									result.match_id = matchHLTV.id;								
-								}
-															
-								// atualização da partida
-								let match = {	
-									match_id  : element[0],			
-									date      :  matchHLTV.date   ? moment(new Date( matchHLTV.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : null ,
-									team1_id  :  matchHLTV.team1  ? matchHLTV.team1.id : null ,
-									team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
-									team1_name:  matchHLTV.team1  ? matchHLTV.team1.name : null,
-									team2_name:  matchHLTV.team2  ? matchHLTV.team2.name : null,
-									format    :  matchHLTV.format ? matchHLTV.format : null,
-									event_id  :  matchHLTV.event  ? matchHLTV.event.id : null,
-									title     :  matchHLTV.title  ? matchHLTV.title : null, 
-									event_name:  matchHLTV.event  ? matchHLTV.event.name : null,
-									stars     :  matchHLTV.stars  ? matchHLTV.stars : null,
-									live      :  matchHLTV.live   ? matchHLTV.live : false,   
-									team1: team1,
-									team2: team2,							
-									match_over:  matchHLTV.status  == 'Match over' ?  true : false, 
-									canceled  :  matchHLTV.status  == 'Match over' || 'Live' ?  false : true, 
-									stats_id  :  matchHLTV.statsId,
-									result: result,
-									map_current: map_current,
-									validated_bets: false,
-									updated_at:  now      
-								};	
-								
-								admin.database().ref('/matches/was_read/' + element[0]).update(JSON.parse( JSON.stringify(match)));
-								admin.database().ref('/matches/upcoming/' + element[0]).update(JSON.parse( JSON.stringify(match)));
-								console.log(matchHLTV.status, ' Match_id = ' + matchHLTV.id)
-
-								if ( matchHLTV.status == 'Match postponed' )
-								{
-									await admin.database().ref('/matches/postponed/' + element[0])
-										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
-												console.log(error);
-											});
-										}).catch( error => {
-											console.log(error);
-										});
-								}
-
-								if ( matchHLTV.status == 'Match deleted' )
-								{
-									await admin.database().ref('/matches/deleted/' + element[0])
-										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
-												console.log(error);
-											});
-										}).catch( error => {
-											console.log(error);
-										});
-								}
-
-								console.log(matchHLTV.status)
-
-								if (matchHLTV.live)
-								{
-									await admin.database().ref('/matches/live/' + element[0])
-										.update(JSON.parse( JSON.stringify(match) )).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
-												console.log(error);
-											});
-										}).catch( error => {
-											console.log(error)
-										})												
+								if ( matchHLTV )
+								{		
+									let [team1, team2] = await Promise.all([getRankTeamMatch(matchHLTV.team1.id),
+																	getRankTeamMatch(matchHLTV.team2.id)]);
 									
-								} else if (matchHLTV.status == 'Match over') {			
-									match.map_current = 'N/D';	
-									//adicionando dados dos resultado na tabela de resultados
-									await admin.database().ref('matches/finish/' + element[0] )
-										.set(JSON.parse( JSON.stringify(match))).then( snap => {
-											admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
-												console.log(error);
-											});
-										}).catch( error => {
-											console.log(error)
-										})	
-								}
-							}								
-						} catch (error) {
-							console.log(error, 'Erro do trycatch snapshot.forEach')
-							console.log('Match: ');				
-						}	
-											
-					});
-				}
-	});
+									//processo de captura de resultados				
+									let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');
+			
+									let result = {};
+									let maps = {};
+									let map_current = 'N/D';
 
+									if (matchHLTV.live)
+									{
+										map_current = 'map1';
+
+										for (let index = 0; index < gameTypeBestOf; index++) {								
+											let map = {};				
+											let winner = {};
+		
+											map.name = matchHLTV.maps[index].name;			
+											map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
+											map.score_team1 = matchHLTV.maps[index].result.substring(0, 5).split(":")[0].replace(/\D/g,'');
+											map.score_team2 = matchHLTV.maps[index].result.substring(0, 5).split(":")[1].replace(/\D/g,'');
+											map.statsId = matchHLTV.maps[index].statsId;
+											map.winner = null;
+											
+											let trocou_lado = Number(map.score_team1) + Number(map.score_team2) >= 15;
+											let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
+											
+											//verifica se a partida tem algum time com score maior que 15						
+											if ( any_team_have_more_than_15_rounds  )								
+											{	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2, 
+												if ( Math.abs(Number(map.score_team1) - Number(map.score_team2)) > 1 )
+												{	//gravarei o vencedor! 
+													if ( Number(map.score_team1) > Number(map.score_team2) )
+													{
+														map.winner = { id: matchHLTV.team1.id, name: matchHLTV.team1.name }
+													}else {
+														map.winner = { id: matchHLTV.team2.id, name: matchHLTV.team2.name }
+													}
+													
+													map_current = 'map' + (+index + 2);
+												}								
+											}
+											
+											isNaN(map.score_team1, map.score_team2 ) ? map.winner = '-' : null;
+											maps['map' + (+index + 1)] = JSON.parse( JSON.stringify(map));
+										}	
+				
+										result.winnerTeam = matchHLTV.winnerTeam;
+										result.maps = maps;
+										result.match_id = matchHLTV.id;								
+									}
+																
+									// atualização da partida
+									let match = {	
+										match_id  : element[0],			
+										date      :  matchHLTV.date   ? moment(new Date( matchHLTV.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : null ,
+										team1_id  :  matchHLTV.team1  ? matchHLTV.team1.id : null ,
+										team2_id  :  matchHLTV.team2  ? matchHLTV.team2.id  : null,
+										team1_name:  matchHLTV.team1  ? matchHLTV.team1.name : null,
+										team2_name:  matchHLTV.team2  ? matchHLTV.team2.name : null,
+										format    :  matchHLTV.format ? matchHLTV.format : null,
+										event_id  :  matchHLTV.event  ? matchHLTV.event.id : null,
+										title     :  matchHLTV.title  ? matchHLTV.title : null, 
+										event_name:  matchHLTV.event  ? matchHLTV.event.name : null,
+										stars     :  matchHLTV.stars  ? matchHLTV.stars : null,
+										live      :  matchHLTV.live   ? matchHLTV.live : false,   
+										team1: team1,
+										team2: team2,							
+										match_over:  matchHLTV.status  == 'Match over' ?  true : false, 
+										canceled  :  matchHLTV.status  == 'Match over' || 'Live' ?  false : true, 
+										stats_id  :  matchHLTV.statsId,
+										result: result,
+										map_current: map_current,
+										validated_bets: false,
+										updated_at:  now      
+									};	
+									
+									admin.database().ref('/matches/was_read/' + element[0]).update(JSON.parse( JSON.stringify(match)));
+									admin.database().ref('/matches/upcoming/' + element[0]).update(JSON.parse( JSON.stringify(match)));
+									
+
+									if ( matchHLTV.status == 'Match postponed' )
+									{
+										await admin.database().ref('/matches/postponed/' + element[0])
+											.update(JSON.parse( JSON.stringify(match) )).then( snap => {
+												admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+													console.log(error);
+												});
+											}).catch( error => {
+												console.log(error);
+												response = false;	
+											});
+									}
+
+									if ( matchHLTV.status == 'Match deleted' )
+									{
+										await admin.database().ref('/matches/deleted/' + element[0])
+											.update(JSON.parse( JSON.stringify(match) )).then( snap => {
+												admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+													console.log(error);
+												});
+											}).catch( error => {
+												console.log(error);
+												response = false;	
+											});
+									}
+
+									if (matchHLTV.live)
+									{
+										await admin.database().ref('/matches/live/' + element[0])
+											.update(JSON.parse( JSON.stringify(match) )).then( snap => {
+												admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+													console.log(error);
+												});
+											}).catch( error => {
+												console.log(error)
+												response = false;	
+											})												
+										
+									} else if (matchHLTV.status == 'Match over') {			
+										match.map_current = 'N/D';	
+										//adicionando dados dos resultado na tabela de resultados
+										await admin.database().ref('matches/finish/' + element[0] )
+											.set(JSON.parse( JSON.stringify(match))).then( snap => {
+												admin.database().ref('/matches/upcoming/' + element[0]).remove().catch( error => {
+													console.log(error);
+													response = false;	
+												});
+											}).catch( error => {
+												console.log(error)
+											})	
+									}
+								}								
+							} catch (error) {
+								console.log(error, 'Erro do trycatch snapshot.forEach')
+								
+								response = false;		
+							}	
+												
+						});
+					}
+		});
+	}catch(error) { 
+		console.log(error);
+		response = false;
+	}
+
+	return response;
 };
 
 
@@ -922,6 +1021,8 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');	
 
 	matches_promisse = admin.database().ref('/matches/upcoming')				
+				.orderByKey()
+				.limitToFirst(15)						
 				.once('value')
 				.then(snapshot => {	
 					let matchUpcoming = []
@@ -939,8 +1040,10 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 					return matchUpcoming;
 				});	
 						
-	array_matches_live_promisse = admin.database().ref('/matches/live')							
-								.once('value')
+	array_matches_live_promisse = admin.database().ref('/matches/live')	
+								.orderByKey()
+								.limitToFirst(15)						
+								.once('value')							
 								.then(snapshot => {	
 									let matchLive = []
 									
@@ -995,7 +1098,6 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 		return moment(new Date(a.date)).tz('America/Sao_Paulo').diff(now) - moment(new Date(b.date)).tz('America/Sao_Paulo').diff(now);
 	});
 
-	console.log(array_matches);
 	// this gives an object with dates as keys
 	const groups = array_matches.reduce((groups, match) => {
 		const date = match.date.substring(0, 10);
@@ -1025,8 +1127,6 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	}, {});
 	
 	// Edit: to add it in the array format instead
-
-
 
 	const groupArrays = Object.keys(groups).map((date) => {
 		return {  
@@ -1091,48 +1191,48 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest( async (req, res)
 	return res.status(200).send(matches_formatted.data);
 });
 
-exports.createMatchesSchedule = functions.pubsub.schedule('*/8 * * * *').onRun( async (context) => {
+exports.createMatchesSchedule = functions.pubsub.schedule('*/10 * * * *').onRun( async (context) => {
 	await createMatchesRealTimeDatabase();
 
 	console.log('This will be run every 8 minutes!');
 	return null;
 });
 
-exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/6 * * * *').onRun( async (context) => {
+exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/7 * * * *').onRun( async (context) => {
 	await updateMatchesUpcoming();
 
 	console.log('updateMatchesUpcoming will be run every 10 minutes!');
 	return null;
 });
 
-exports.updateMatchesLiveSchedule = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
+exports.updateMatchesLiveSchedule = functions.pubsub.schedule('*/4 * * * *').onRun( async (context) => {
 	await updateMatchesLive();
 
 	console.log('updateMatchesLive will be run every 3 minutes!');
 	return null;
 });
-exports.updatePlayersTeamSchedule = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
+exports.updatePlayersTeamSchedule = functions.pubsub.schedule('*/5 * * * *').onRun( async (context) => {
 	await getTeamsWithoutUpdatedPlayer();
 
 	console.log('updateBetsMatchLive will be run every 3 minutes!');
 	return null;
 });
 
-exports.updateBetsMatchLiveSchedule = functions.pubsub.schedule('*/2 * * * *').onRun( async (context) => {
+exports.updateBetsMatchLiveSchedule = functions.pubsub.schedule('*/6 * * * *').onRun( async (context) => {
 	await updateBetsMatchLive();
 
 	console.log('updateBetsMatchLive will be run every 3 minutes!');
 	return null;
 });
 
-exports.updateBetsMatchFinishSchedule = functions.pubsub.schedule('*/2 * * * *').onRun( async (context) => {
+exports.updateBetsMatchFinishSchedule = functions.pubsub.schedule('*/6 * * * *').onRun( async (context) => {
 	await updateBetsMatchFinish();
 
 	console.log('updateBetsMatchLive will be run every 3 minutes!');
 	return null;
 });
 
-exports.updateRankingMonthly = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
+exports.updateRankingMonthly = functions.pubsub.schedule('*/10 * * * *').onRun( async (context) => {
 	let users_ref = await getUsersDatabaseRealtime();
 	let objsUser = Object.entries(users_ref.val());
 
@@ -1161,7 +1261,9 @@ exports.updateRankingMonthly = functions.pubsub.schedule('*/3 * * * *').onRun( a
 	return null;
 });
 
-exports.updateRankingYearly  = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
+exports.onUserCreate = functions.https.onRequest( async (req, res) => { return 'teste' });
+
+exports.updateRankingYearly  = functions.pubsub.schedule('*/8 * * * *').onRun( async (context) => {
 	let users_ref = await getUsersDatabaseRealtime();
 	let objsUser = Object.entries(users_ref.val());
 
@@ -1190,33 +1292,7 @@ exports.updateRankingYearly  = functions.pubsub.schedule('*/3 * * * *').onRun( a
 	return null;
 })
 
-// exports.resetPointsMonthly = functions.pubsub.schedule('*/3 * * * *').onRun( async (context) => {
-// 	let users_ref = await getUsersDatabaseRealtime();
-// 	let objsUser = Object.entries(users_ref.val());
-	
-// 	objsUser.forEach ( (item, index) => {
-// 		admin.database().ref('/users/' + item[0]).update({rank_points_monthly: 0, });		
-// 	});
-
-// 	console.log('updateBetsMatchFinish will be run every 3 minutes!');
-// 	return res.json('Teste');
-// });
-
 const getTeamHTLV = async (team_id) => {
-    let team = {};
-
-    try {
-        await HLTV.getTeam({id: team_id}).then(res => {
-            team = res
-        })
-    } catch (error) {
-        console.log(error);
-    }
-
-    return team;
-}
-
-const getMapsHTLV = async (match_id) => {
     let team = {};
 
     try {
@@ -1232,6 +1308,7 @@ const getMapsHTLV = async (match_id) => {
 
 const getRankTeamMatch = async (team_id) => { 	
 	let team = {};
+
 	await admin.database()
 			.ref('/teams/' + team_id)
 			.once('value').then( async (snapTeam) => {
@@ -1240,15 +1317,30 @@ const getRankTeamMatch = async (team_id) => {
 					team = snapTeam.val();
 					
 					let diff = moment(moment().tz('America/Sao_Paulo')).diff(moment(team.updated_at) , "days");
-					if ( diff >= 7 )
+
+					if ( diff >= 14 )
 					{
-						team = await getTeamHTLV(team_id);
-						team.updated_at = team.updated_at =  moment().tz('America/Sao_Paulo').format();
+						teamHLTV = await getTeamHTLV(team_id);
+
+						team.id  = teamHLTV.id;
+						team.location = teamHLTV.location;
+						team.name = teamHLTV.name;
+						team.players = teamHLTV.players;
+						team.rank = teamHLTV.rank;
+						team.updated_at =  moment().tz('America/Sao_Paulo').format();
+
 						await admin.database().ref('/teams/' + team.id).update(JSON.parse(JSON.stringify(team)));
 					}
 				}else {
-					team = await getTeamHTLV(team_id);
-					team.updated_at = team.updated_at =  moment().tz('America/Sao_Paulo').format();;
+					teamHLTV = await getTeamHTLV(team_id);
+
+					team.id  = teamHLTV.id;
+					team.location = teamHLTV.location;
+					team.name = teamHLTV.name;
+					team.players = teamHLTV.players;
+					team.rank = teamHLTV.rank;
+					team.updated_at = teamHLTV.updated_at =  moment().tz('America/Sao_Paulo').format();					
+
 					await admin.database().ref('/teams/' + team.id).update(JSON.parse(JSON.stringify(team)));
 				}
 			});		
@@ -1315,9 +1407,105 @@ exports.getRankTeam = functions.https.onRequest( async (req, res) => {
     return res.status(200).send(team);
 });
 
-exports.teste = functions.https.onRequest( async (req, res) => { 	
-	await updateBetsMatchFinish();
+exports.teste1 = functions.https.onRequest( async (req, res) => { 
+	
+	await getTeamsWithoutUpdatedPlayer();
 });
+
+
+
+exports.teste2 = functions.https.onRequest( async (req, res) => { 	
+	const bet = { 
+		cost:
+		10,
+		date_match:
+		"2021/02/16 06:00",
+		datetime:
+		"2021/02/15 16:34",
+		match_id:
+		2346596,
+		result:
+		"",
+		reward_points:
+		"25",
+		risk_loss_points:
+		"13",
+		team1_percentual_rank:
+		50,
+		team2_percentual_rank:
+		50,
+		team_id:
+		10998,
+		team_name:
+		"Ninja",
+		type_bet_id:
+		3,
+		type_bet_name:
+		"Vencedor - Map 2",
+		user_uid:
+		"sV4LxdQYtNYl8mGStTXhdrWSLM52"
+	}
+
+	var newBetKey = admin.database().ref().child('bets').push().key;
+	var updates = {};
+
+	updates['/bets/opens/' + newBetKey] = bet;
+	updates['/user-bets/v5ZakbLgrBeJs3nDIyouJViSUcG2/opens/' + newBetKey] = bet;
+
+	admin.database().ref().update(updates, function(error) {
+		if (error) {
+			// The write failed...
+			console.log(error);	
+			console.log("error in insert bet, | File: Bet.js | Function: recordBet() |");	
+
+			return false;
+		} else {
+			//Data saved successfully!
+		
+
+		}
+	});	
+
+	return res.json('match1');
+});
+
+exports.basicTest = function(){
+    const a = 1;
+    const b = 5;
+    return a + b;
+}
+
+exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(event => {        
+	if ( event.exists()  ){
+		return admin.database()
+		.ref('/users')
+		.child(event.val().user_uid)
+		.child('bet_points')
+		.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().cost)))).then( () => {
+			console.log('User: ', event.val().user_uid, ' efetuou uma aposta!', 
+			'Custo: ', -Math.abs(Number(event.val().cost)),
+			'Aposta Key: ', event.key)
+		}).catch( error => { console.log(error) });
+	} else { 
+		return Promise.reject('Unknown error');
+	}		
+}); 
+
+// exports.update_points = functions.database.ref('/bets/finish/{key}').onCreate(event => {        
+// 	if ( event.exists()  ){
+// 		return admin.database()
+// 		.ref('/users')
+// 		.child(event.val().user_uid)
+// 		.child('bet_points')
+// 		.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().cost)))).then( () => {
+// 			console.log('User: ', event.val().user_uid, ' efetuou uma aposta!', 
+// 			'Custo: ', -Math.abs(Number(event.val().cost)),
+// 			'Aposta Key: ', event.key)
+// 		}).catch( error => { console.log(error) });
+// 	} else { 
+// 		return Promise.reject('Unknown error');
+// 	}		
+// });
 
 exports.getMatchHTLV = functions.https.onRequest( async (req, res) => { 
 	let match = {};
@@ -1338,6 +1526,9 @@ exports.getMatchHTLV = functions.https.onRequest( async (req, res) => {
 	}
 });
 
+
+
+
 const updateLocationPlayer = async (player_id, team_id, index) =>  { 
 
 	let player = await HLTV.getPlayer({id: player_id}).then((res) => {										
@@ -1347,46 +1538,53 @@ const updateLocationPlayer = async (player_id, team_id, index) =>  {
 	admin.database().ref('/teams/' + team_id + '/players/' + index).update({country: player.country.name});
 }
 
-const getTeamsWithoutUpdatedPlayer = async () =>  { 
-	admin.database().ref('/teams')
-		.orderByChild('players_countrys_updated')
-		.equalTo(false).limitToFirst(3)
-		.once('value').then( snap => { 
+const getTeamsWithoutUpdatedPlayer = () => { 
+	let result = true;
 
-			if(snap.exists())
-			{				
-				snap.forEach ( team => {					
-					let playersWithoutCountry = Object.entries(team.child('players').val()).filter( e => {
-						
-						return e[1].country == undefined;
-					});
-					
-					if ( playersWithoutCountry.length > 0 )
-					{
-						playersWithoutCountry.forEach( player => {
-							console.log('atualizando o time ', team.val().id)	
-							updateLocationPlayer(player[1].id, team.val().id, player[0]);
-							
+	try {
+		admin.database().ref('/teams')
+			.orderByChild('players_countrys_updated')
+			.equalTo(false).limitToFirst(3)
+			.once('value').then( snap => { 
+				console.log(snap.exists())
+				if(snap.exists())
+				{				
+					snap.forEach ( team => {					
+						let playersWithoutCountry = Object.entries(team.child('players').val()).filter( e => {						
+							return e[1].country == undefined;
 						});
-					}else{
-
-						let brazilianPlayers = Object.entries(team.child('players').val()).filter( e => {
 						
-							return e[1].country == 'Brazil';
-						});
-
-						if ( brazilianPlayers > 0 )
+						if ( playersWithoutCountry.length > 0 )
 						{
-							team.ref.update({player_br: true})					
+							playersWithoutCountry.forEach( player => {
+								console.log('atualizando o time ', team.val().id)	
+								updateLocationPlayer(player[1].id, team.val().id, player[0]);
+								
+							});
 						}else{
-							team.ref.update({player_br: false})	
-						}
 
-						team.ref.update({players_countrys_updated: true, updated_at: moment().tz('America/Sao_Paulo').format() });			
-					}	
-					
-				})
-			}
-	});
+							let brazilianPlayers = Object.entries(team.child('players').val()).fil2ter( e => {
+							
+								return e[1].country == 'Brazil';
+							});
 
+							if ( brazilianPlayers.length > 0 )
+							{
+								team.ref.update({player_br: true})					
+							}else{
+								team.ref.update({player_br: false})	
+							}
+
+							team.ref.update({players_countrys_updated: true, updated_at: moment().tz('America/Sao_Paulo').format() });			
+						}	
+						
+					})
+				}
+		});
+	} catch (error) {
+		console.log(error);
+		result = false;
+	}
+
+	return result;
 }
