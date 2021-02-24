@@ -42,20 +42,23 @@ describe('Rusha testando funções', () => {
             
     // });
 
-    // it('JOB - Cria partidas', async () => {   
-    //     let response = await api.__get__('createMatchesRealTimeDatabase()');
-    //     expect(response).toBe(true);              
-    // });
+    it('JOB - Cria partidas', async () => {   
+        let response = await api.__get__('createMatchesRealTimeDatabase()');
+
+   
+
+        expect(response).toBe(true);              
+    });
     
     // it('JOB - Atualiza partidas agendadas', async () => {   
     //     let response = await api.__get__('updateMatchesUpcoming()');
     //     expect(response).toBe(true);              
     // }); 
     
-    it('JOB - Atualiza partidas live', async () => {   
-        let response = await api.__get__('updateMatchesLive()');
-        expect(response).toBe(true);              
-    }); 
+    // it('JOB - Atualiza partidas live', async () => {   
+    //     let response = await api.__get__('updateMatchesLive()');
+    //     expect(response).toBe(true);              
+    // }); 
     
     // it('FUNÇÃO BÁSICA - Busca Time HLTV', async () => {           
     //     let response = await api.__get__('getTeamHTLV(10304)');
