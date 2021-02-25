@@ -3,14 +3,11 @@ const admin = require('firebase-admin');
 const moment = require('moment-timezone');
 const { HLTV } = require('hltv');
 
-module.exports.updateScoreUsers = async (bet, result, betKey, msgNotification, titleNotification) => {
-	console.log('------------Inicio de gravação dos pontos do usuário---------------');
-
+module.exports.updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotification) => {
 	const reward_points = parseInt(bet.reward_points);
 	const risk_points = parseInt(bet.risk_loss_points);
 
-	await getUserSnapUser(bet.user_uid).then(async userSnapUser => {
-		console.log('Usuário encontrado, email cadastrado: ' + userSnapUser.val().email);
+	await getUserSnapUser(bet.user_uid).then(async userSnapUser => {		
 		let points_monthly = userSnapUser.val().rank_points_monthly;
 		let points_yearly = userSnapUser.val().rank_points_yearly;
 		let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
@@ -34,7 +31,7 @@ module.exports.updateScoreUsers = async (bet, result, betKey, msgNotification, t
 			};
 
 			admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then(snapUser => { });
-			//admin.database().ref('/users/' + user_uid + '/logs/' ).set(newNotification).then( snapUser => {});
+			
             } else {
                 let new_points_monthly = result == 'win' ? Number(points_monthly) + Number(reward_points) : Number(points_monthly) - Number(risk_points);
                 let new_points_yearly = result == 'win' ? Number(points_yearly) + Number(reward_points) : Number(points_yearly) - Number(risk_points);

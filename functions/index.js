@@ -84,12 +84,13 @@ const updateBetsMatchFinish = async () => {
 
 	try {
 		let bets = await firebase_match.getListBetsMatchFinish();
-	
+		
 		if (bets.length > 0) {
 			console.log(`Encontrei ${bets.length} apostas `);
 			
 			bets.forEach(async bet => {
 				console.log('Match: ' + bet[1].match_id);
+				
 				await firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'finish');
 			});				
 		}
@@ -435,9 +436,6 @@ exports.updateRankingYearly = functions.pubsub.schedule('*/8 * * * *').onRun(asy
 	return null;
 })
 
-
-
-
 exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 	let team = {};
 
@@ -483,7 +481,7 @@ exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 });
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await createMatchesRealTimeDatabase(); 
+	await updateBetsMatchFinish(); 
 	//await updateMatchesLive();    
 });
 
@@ -542,12 +540,6 @@ exports.teste2 = functions.https.onRequest(async (req, res) => {
 	return res.json('match1');
 });
 
-exports.basicTest = function () {
-	const a = 1;
-	const b = 5;
-	return a + b;
-}
-
 exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(event => {
 	if (event.exists()) {
 		return admin.database()
@@ -563,22 +555,6 @@ exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(eve
 		return Promise.reject('Unknown error');
 	}
 });
-
-// exports.update_points = functions.database.ref('/bets/finish/{key}').onCreate(event => {        
-// 	if ( event.exists()  ){
-// 		return admin.database()
-// 		.ref('/users')
-// 		.child(event.val().user_uid)
-// 		.child('bet_points')
-// 		.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().cost)))).then( () => {
-// 			console.log('User: ', event.val().user_uid, ' efetuou uma aposta!', 
-// 			'Custo: ', -Math.abs(Number(event.val().cost)),
-// 			'Aposta Key: ', event.key)
-// 		}).catch( error => { console.log(error) });
-// 	} else { 
-// 		return Promise.reject('Unknown error');
-// 	}		
-// });
 
 exports.getMatchHTLV = functions.https.onRequest(async (req, res) => {
 	let match = {};

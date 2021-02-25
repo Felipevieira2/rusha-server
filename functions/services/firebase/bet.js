@@ -11,6 +11,7 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
     let result = await check_bets(bet, match);
     if ( result != '' ) {
         bet.result = result;
+	
         update(key, bet, result, match);
     }else {
         console.log(`Não existe resultado ainda para aposta!`)
@@ -18,15 +19,15 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 }
 
 const check_bets = async (bet, match) => {    
-	let type_bet = await getTypeBet(bet.type_bet_id);    
+	let type_bet = await getTypeBet(bet.type_bet_id);  
 	let result = '';
 	let bet_result = {
 		map() {
 			let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
-           
+            
 			if (mapPlayed) {
 				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-			} else if (match.match_over == true && mapPlayed == false) {
+			} else if (match.status == 'Match over' && mapPlayed == false) {
 				result = 'map not played';
 			}
 		},		

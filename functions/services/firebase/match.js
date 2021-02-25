@@ -192,7 +192,7 @@ async function update  (id, status_current = '' ) {
 }
 
 const getListMatches  = async (status, limit = 2) => { 
-        return await admin.database().ref('/matches/' +status)
+        return await admin.database().ref('/matches/' + status)
             .orderByChild('updated_at')
             .limitToFirst(limit)
             .once('value').then(async function (snapshot) {

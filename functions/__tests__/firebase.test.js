@@ -44,9 +44,6 @@ describe('Rusha testando funções', () => {
 
     it('JOB - Cria partidas', async () => {   
         let response = await api.__get__('createMatchesRealTimeDatabase()');
-
-   
-
         expect(response).toBe(true);              
     });
     
