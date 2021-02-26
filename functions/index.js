@@ -49,6 +49,25 @@ const updateMatchesUpcoming = async () => {
 	return response;
 };
 
+const updateMatchesUpcomingOlders = async () => {
+	let response = true;
+	let matchesUpcomingOlders = await firebase_match.getMatchesUpcomingOldersDB();	
+	
+	try {
+	// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
+		matchesUpcomingOlders.forEach(async (item, idx) => {
+			await firebase_match.update(item[0], 'upcoming');			
+		});	
+	} catch (error) {
+		console.log(error);
+		response = false;
+	}
+
+	await Promise.all(matchesUpcomingOlders)
+	
+	return response;
+};
+
 const updateBetsMatchLive = async () => {
 	let response = true;
 	
@@ -150,8 +169,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');
 
 	matches_promisse = admin.database().ref('/matches/upcoming')
-		.orderByKey()
-		.limitToFirst(15)
+		.orderByKey()		
 		.once('value')
 		.then(snapshot => {
 			let matchUpcoming = []
@@ -159,6 +177,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 			if (snapshot.numChildren() > 0) {
 				snapshot.forEach(function (matchSnapshot) {
 					let isMatchUpcomingValid = false;
+					if(matchSnapshot.val().match_id == 2346751) { console.log(matchSnapshot.val()) }
 					let tierTeam1 = Object.hasOwnProperty.bind(matchSnapshot.val().team1 || {})('tier');
 					let tierTeam2 = Object.hasOwnProperty.bind(matchSnapshot.val().team2 || {})('tier');
 
@@ -177,8 +196,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 		});
 
 	array_matches_live_promisse = admin.database().ref('/matches/live')
-		.orderByKey()
-		.limitToFirst(15)
+		.orderByKey()		
 		.once('value')
 		.then(snapshot => {
 			let matchLive = []
@@ -206,7 +224,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 		array_matches_live] = await Promise.all(
 			[matches_promisse, array_matches_live_promisse]
 		);
-
+	
 	matches.forEach(async (item) => {
 
 		item.date ? date = item.date.substring(0, 10) : 'Live';
@@ -247,7 +265,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 	});
 
 	// this gives an object with dates as keys
-	const groups = array_matches.reduce((groups, match) => {
+	const groups = array_matches.splice(0, 20).reduce((groups, match) => {
 		const date = match.date.substring(0, 10);
 
 		if (!groups[date]) {
@@ -340,14 +358,23 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 	return res.status(200).send(matches_formatted.data);
 });
 
-exports.createMatchesSchedule = functions.pubsub.schedule('*/10 * * * *').onRun(async (context) => {
+exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(async (context) => {
 	await createMatchesRealTimeDatabase();
 
 	console.log('This will be run every 8 minutes!');
 	return null;
 });
 
-exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/7 * * * *').onRun(async (context) => {
+exports.updateMatchesUpcomingOldersSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
+	await updateMatchesUpcomingOlders();
+
+	console.log('This will be run every 8 minutes!');
+	return null;
+});
+
+
+
+exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
 	await updateMatchesUpcoming();
 
 	console.log('updateMatchesUpcoming will be run every 10 minutes!');

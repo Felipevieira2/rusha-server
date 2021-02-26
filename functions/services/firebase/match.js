@@ -124,11 +124,11 @@ const  store = async (matchHLTV) => {
                 console.log(`Partida inserida com sucesso! `)   
             });    
 
-        }else if( matchFormatted.live == true && !matchExistInLive ){
+        }else if( matchFormatted.live  && !matchExistInLive ){
             console.log('consultando partida live na hltv');
             console.log('STATUS: ' + matchFormatted.live)          
             //atualiza partida se n existir no status upcoming
-            await update(matchFormatted.match_id, 'live');
+            await update(matchFormatted.match_id, 'upcoming');
                                         
         }else if(snapshot.exists()){ 
             console.log('partida já existe no banco')
@@ -182,10 +182,7 @@ async function update  (id, status_current = '' ) {
                 .ref(ref)
                 .remove();
             }
-        });
-        
-      
-        
+        });                      
     }else {
         console.log('não encontrada partida na hltv')
     }
@@ -211,7 +208,7 @@ const getListBetsMatchFinish  = async () => {
                 .endAt(now)
                 .once('value')
                 .then(async function (betsSnap) {
-                    console.log(betsSnap.exists())
+                   
                     if (betsSnap.exists()) {
                         let arrayBetOpens = Object.entries(betsSnap.toJSON());                        
 
@@ -239,6 +236,23 @@ const getMatchDB  = async function(id, status)  {
         });
     }
 
+const getMatchesUpcomingOldersDB = async function() {
+    let sevenDayBefore = moment().tz('America/Sao_Paulo').subtract(7, 'day').format('YYYY/MM/DD');
+	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');
+    return await admin.database().ref('/matches/upcoming')
+    .orderByChild('date')
+    .startAt(sevenDayBefore)
+    .endAt(today)
+    .limitToFirst(2)
+    .once('value').then(async function (snapshot) {
+        if (snapshot.exists()) {
+            return Object.entries(snapshot.val())
+        }else {
+            return []
+        }
+    });
+}
+
 
 const getBetsOpens = async (match_id) => {
     return await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match_id))
@@ -263,6 +277,7 @@ module.exports = {
     getListMatches: getListMatches,
     update: update,
     store: store,
+    getMatchesUpcomingOldersDB: getMatchesUpcomingOldersDB,
     isMatchExists: isMatchExists,
     formatObjMatch: formatObjMatch
 }

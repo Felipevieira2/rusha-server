@@ -8,10 +8,23 @@ const firebase_user = require('./user');
 module.exports.validBet = async (key, bet, match_id, match_status) =>  { 
 
     let match = await firebase_match.getMatchDB(match_id, match_status);
+
+	if ( match.result == undefined ){
+		matchHLTV = await HLTV.getMatch({id: match_id}).then((res) => {	        								
+			return res;
+		}).catch(error => {								
+			console.log(error, 'Erro na função [module.exports.store] getMatch HLTV');
+			response = false;	
+		});		
+
+		match = await firebase_match.formatObjMatch(matchHLTV, updating = true);
+	}
+
     let result = await check_bets(bet, match);
+
     if ( result != '' ) {
         bet.result = result;
-	
+		
         update(key, bet, result, match);
     }else {
         console.log(`Não existe resultado ainda para aposta!`)
@@ -19,23 +32,24 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 }
 
 const check_bets = async (bet, match) => {    
+	
 	let type_bet = await getTypeBet(bet.type_bet_id);  
 	let result = '';
 	let bet_result = {
-		map() {
+		map() {				
 			let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
-            
+
 			if (mapPlayed) {
 				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
 			} else if (match.status == 'Match over' && mapPlayed == false) {
 				result = 'map not played';
-			}
+			}			
 		},		
-		game() {
-			let isThereWinner = Object.hasOwnProperty.bind(match.result || {})('winnerTeam');
-
+		game() {		
+			let isThereWinner = match.result.winnerTeam != undefined;
+			
 			if (isThereWinner) {
-				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
+				result = bet.team_id == match.result.winnerTeam.id ? 'win' : 'lost';
 			}
 		},
 	}
@@ -84,21 +98,21 @@ const getTextToNotification = async (result, bet, match) => {
 
 	let getMessage = {
 		win(){
-			return `Parabéns, você apostou na vitória do time: ${choice_team_name} e ganhou 30 pontos.`;
+			return `"Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos!"`;
 		},
 		lost(){
-			return `Infelizmente, você apostou na vitória do time: ${choice_team_name} e perdeu 15 pontos`;
+			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu 15 pontos`;
 		},
 		mapnotplayed(){
-			return `Aposta estornada, você apostou na vitória do time: ${choice_team_name} porém, os dois times não jogaram o mapa`;
+			return `Sua aposta no(a) ${choice_team_name} foi estornada, pois o mapa ou evento não foi disputado!`;
 		}		
 	}
 
 	let notifications = { 
-		title: `Aposta: ${bet_description} - ${team1_name} ${team2_name}`,
+		title: `${team1_name} x ${team2_name} | ${bet.type_bet_name}`,
 		message: getMessage[result.split(' ').join('')]()
 	}
-
+ 
 	return notifications;
 }
 
