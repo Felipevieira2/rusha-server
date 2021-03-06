@@ -88,9 +88,7 @@ const updateBetsMatchFinish = async () => {
 		if (bets.length > 0) {
 			console.log(`Encontrei ${bets.length} apostas `);
 			
-			bets.forEach(async bet => {
-				console.log('Match: ' + bet[1].match_id);
-				
+			bets.forEach(async bet => {				
 				await firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'finish');
 			});				
 		}
