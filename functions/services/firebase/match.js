@@ -24,7 +24,7 @@ const formatObjMatch = async (item, updating = false) => {
     let match = { };
   
     match = {
-        match_id  : item.id,
+        match_id  : Number(item.id),
         date      : item.date ? moment(new Date( item.date )).tz('America/Sao_Paulo').format("YYYY/MM/DD HH:mm") : '' ,
         team1_id  : typeof item.team1.id === 'undefined' ?  ''  : item.team1.id  ,
         team2_id  : typeof item.team2.id === 'undefined' ?  '' : item.team2.id ,

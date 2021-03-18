@@ -506,7 +506,7 @@ exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 });
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await updateBetsMatchFinish(); 
+	await createMatchesRealTimeDatabase(); 
 	//await updateMatchesLive();    
 });
 
