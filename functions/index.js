@@ -3,6 +3,8 @@ const admin = require('firebase-admin');
 const api_hltv = require('./services/hltv');
 const firebase_match = require('./services/firebase/match');
 const firebase_bet = require('./services/firebase/bet');
+const firebase_users = require('./services/firebase/user');
+
 const moment = require('moment-timezone');
 
 const createMatchesRealTimeDatabase = async () => {
@@ -48,6 +50,7 @@ const updateMatchesUpcoming = async () => {
 	
 	return response;
 };
+
 
 const updateMatchesUpcomingOlders = async () => {
 	let response = true;
@@ -459,7 +462,17 @@ exports.updateRankingYearly = functions.pubsub.schedule('*/8 * * * *').onRun(asy
 	});
 
 	return null;
-})
+});
+
+exports.storeWinnersMounthJob = functions.pubsub.schedule('0 58 23 L * ?').onRun(async (context) => {
+	let winnersMonth = await firebase_users.getWinnersMounth(10); 
+	firebase_users.storeWinnersYear(winnersMonth); 
+});
+
+exports.storeWinnersYearJob = functions.pubsub.schedule('0 58 23 L 12 ?').onRun(async (context) => {
+	let winnersMonth = await firebase_users.getWinnersMounth(10); 
+	firebase_users.storeWinnersYear(winnersMonth); 
+});
 
 exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 	let team = {};
@@ -506,8 +519,13 @@ exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 });
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await createMatchesRealTimeDatabase(); 
-	//await updateMatchesLive();    
+	// let winnersYear = await firebase_users.getWinnersYear(); 
+	// firebase_users.storeWinnersYear(winnersYear); 
+
+	// let winnersMonth = await firebase_users.getWinnersMounth(); 
+	// firebase_users.storeWinnersYear(winnersMonth); 
+
+	return res.end()
 });
 
 exports.teste2 = functions.https.onRequest(async (req, res) => {
@@ -608,6 +626,7 @@ const updateLocationPlayer = async (player_id, team_id, index) => {
 	admin.database().ref('/teams/' + team_id + '/players/' + index).update({ country: player.country.name });
 }
 
+
 const getTeamsWithoutUpdatedPlayer = () => {
 	let result = true;
 
@@ -655,3 +674,4 @@ const getTeamsWithoutUpdatedPlayer = () => {
 
 	return result;
 }
+

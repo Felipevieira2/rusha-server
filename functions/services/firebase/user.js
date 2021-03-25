@@ -72,3 +72,77 @@ const getUserSnapUser = async (user_uid) => {
 		return snapUser;
 	});
 }
+
+const getWinnersMounth = async (limitRange = 10) => {
+	return await admin
+    .database()
+    .ref('/users/')
+    .limitToFirst(limitRange)
+    .once('value').then( snapUser => {
+        let users = [];
+
+        if ( snapUser.exists() ){
+            console.log(snapUser.numChildren());
+            snapUser.forEach( function(el){
+                users.push({
+                    name: el.val().name,
+                    rank_monthly: el.val().rank_monthly,
+                    rank_points_monthly: el.val().rank_points_monthly,
+                    uid: el.val().uid || '',
+                })
+            });
+    
+           users.sort((a, b) => a.rank_monthly - b.rank_monthly);
+        }
+
+        return users;        
+	});
+}
+
+const getWinnersYear = async (limitRange = 10) => {
+	return await admin
+    .database()
+    .ref('/users/')
+    .limitToFirst(limitRange)
+    .once('value').then( snapUser => {
+        let users = []; 
+
+        if ( snapUser.exists() ){
+            console.log(snapUser.numChildren());
+            snapUser.forEach( function(el){
+                users.push({
+                    name: el.val().name,
+                    rank_yearly: el.val().rank_yearly,
+                    rank_points_yearly: el.val().rank_points_yearly,
+                    uid: el.val().uid || '',
+                });
+            });
+    
+            users.sort((a, b) => a.rank_yearly - b.rank_yearly);
+        }
+
+        return users;        
+	});
+}
+
+const storeWinnersMounth = async (arr) => {
+    let mounthCurrent = moment().tz('America/Sao_Paulo').format('MM');
+    let yearCurrent = moment().tz('America/Sao_Paulo').format('YYYY');
+
+    admin.database().ref(`/awards/${yearCurrent}/${mounthCurrent}/winnersMonth/`)
+    .set(arr);    
+}
+
+const storeWinnersYear = async (arr) => {    
+    let yearCurrent = moment().tz('America/Sao_Paulo').format('YYYY');
+
+    admin.database().ref(`/awards/${yearCurrent}/winnersYear/`)
+    .set(arr);    
+}
+
+module.exports = {
+    getWinnersMounth,  
+    storeWinnersMounth,
+    storeWinnersYear,
+    getWinnersYear
+}
