@@ -464,12 +464,12 @@ exports.updateRankingYearly = functions.pubsub.schedule('*/8 * * * *').onRun(asy
 	return null;
 });
 
-exports.storeWinnersMounthJob = functions.pubsub.schedule('0 58 23 L * ?').onRun(async (context) => {
+exports.storeWinnersMounthJob = functions.pubsub.schedule('1 of month 00:00').onRun(async (context) => {
 	let winnersMonth = await firebase_users.getWinnersMounth(10); 
 	firebase_users.storeWinnersYear(winnersMonth); 
 });
 
-exports.storeWinnersYearJob = functions.pubsub.schedule('0 58 23 L 12 ?').onRun(async (context) => {
+exports.storeWinnersYearJob = functions.pubsub.schedule('1 of jan 00:00').onRun(async (context) => {
 	let winnersMonth = await firebase_users.getWinnersMounth(10); 
 	firebase_users.storeWinnersYear(winnersMonth); 
 });
@@ -519,8 +519,9 @@ exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 });
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	// let winnersYear = await firebase_users.getWinnersYear(); 
-	// firebase_users.storeWinnersYear(winnersYear); 
+	let winnersYear = await firebase_users.getWinnersYear(); 
+	
+	//firebase_users.storeWinnersYear(winnersYear); 
 
 	// let winnersMonth = await firebase_users.getWinnersMounth(); 
 	// firebase_users.storeWinnersYear(winnersMonth); 
