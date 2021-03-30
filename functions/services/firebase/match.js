@@ -19,6 +19,25 @@ const isMatchExists = async (id, status) => {
     });
 }
 
+const checkIfTeamHaveRanking = async (team_id) => {
+    return await admin.database()
+    .ref('/teams/' + team_id)
+    .once('value').then( async (snapTeam) => {
+        let team = [];
+
+        if ( snapTeam.exists() ) 
+        {
+            team = snapTeam.val();
+        }else{
+            admin.database().ref('/teams_need_insert/' + team_id).set({
+                status: false, team_id: team_id 
+            });
+        }
+
+        return team;
+    });
+}
+
 const formatObjMatch = async (item, updating = false) => {
     let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
     let match = { };
@@ -43,6 +62,19 @@ const formatObjMatch = async (item, updating = false) => {
         status : item.status ? item.status : false,  					
         updated_at: today       
     };
+
+    if( !updating ){
+        let [team1,  team2] = await Promise.all([
+                checkIfTeamHaveRanking(match.team1_id),
+                checkIfTeamHaveRanking(match.team2_id)]);
+
+        if( team1 && team2  ){
+            match.team1 = team1;
+            match.team2 = team2;
+            console.log('adicionado: ', team1, 'team 1')
+            console.log('adicionado: ', team2, 'team 2')
+        }
+    }
 
     if ( updating )
     {   
@@ -100,6 +132,8 @@ const formatObjMatch = async (item, updating = false) => {
         match.team1 = team1;
         match.team2 = team2;
     }
+
+    
 
     return match
 }

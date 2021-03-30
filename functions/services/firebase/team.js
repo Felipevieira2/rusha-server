@@ -1,7 +1,8 @@
 const admin = require('firebase-admin');
 const moment = require('moment-timezone');
 const { HLTV } = require('hltv');
-module.exports.getRankTeamMatch = async (team_id) => { 	
+
+const getRankTeamMatch = async (team_id) => { 	
 	let team = {};
 
 	await admin.database()
@@ -67,4 +68,54 @@ const getTeamHTLV = async (team_id) => {
 	}
 
 	return team;
+}
+
+
+const getTeamsNeedUpdate = async () => {
+	let teams = await admin.database()
+	.ref('/teams_need_insert')
+	.orderByChild('status')
+	.equalTo(false)
+	.limitToFirst(3)
+	.once('value').then( async (snapTeam) => {
+		if ( snapTeam.exists() ) 
+		{
+			let teste = [];
+
+			snapTeam.forEach(  el => {
+				
+				teste.push(el.val());
+
+			})
+			return teste;	
+		}
+	})
+
+	teams.forEach( async el => {
+		teamHLTV = await getTeamHTLV(el.team_id);
+	
+		if ( teamHLTV ){
+			let team = {};
+			team.id  = teamHLTV.id;
+			team.location = teamHLTV.location;
+			team.name = teamHLTV.name;
+			team.players = teamHLTV.players;
+			team.rank = teamHLTV.rank;
+			team.updated_at = teamHLTV.updated_at = moment().tz('America/Sao_Paulo').format();					
+			console.log(team.id)
+
+			admin.database()
+				.ref('/teams/' + team.id)
+				.update(JSON.parse(JSON.stringify(team)))
+				.then(() => {
+					admin.database().ref('/teams_need_insert/' + team.id).update({status: true, updated_at: moment().tz('America/Sao_Paulo').format()});
+				});
+		}
+	});
+	
+}
+
+module.exports = {
+    getRankTeamMatch,
+	getTeamsNeedUpdate
 }

@@ -4,6 +4,7 @@ const api_hltv = require('./services/hltv');
 const firebase_match = require('./services/firebase/match');
 const firebase_bet = require('./services/firebase/bet');
 const firebase_users = require('./services/firebase/user');
+const api_firebase_team = require('./services/firebase/team');
 
 const moment = require('moment-timezone');
 
@@ -37,7 +38,7 @@ const updateMatchesUpcoming = async () => {
 	let matchesUpcoming = await firebase_match.getListMatches('upcoming');	
 
 	try {
-	// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
+		//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
 		matchesUpcoming.forEach(async (item, idx) => {
 			await firebase_match.update(item[0]);			
 		});	
@@ -361,13 +362,13 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 
 exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(async (context) => {
 	await createMatchesRealTimeDatabase();
-
 	console.log('This will be run every 8 minutes!');
 	return null;
 });
 
 exports.updateMatchesUpcomingOldersSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
 	await updateMatchesUpcomingOlders();
+	await updateTeamsNeedUpdating();
 
 	console.log('This will be run every 8 minutes!');
 	return null;
@@ -466,12 +467,14 @@ exports.updateRankingYearly = functions.pubsub.schedule('*/8 * * * *').onRun(asy
 
 exports.storeWinnersMounthJob = functions.pubsub.schedule('1 of month 00:00').onRun(async (context) => {
 	let winnersMonth = await firebase_users.getWinnersMounth(10); 
-	firebase_users.storeWinnersYear(winnersMonth); 
+	firebase_users.storeWinnersYear(winnersMonth);
+	resetAllRankPointsUsersMonth(); 
 });
 
 exports.storeWinnersYearJob = functions.pubsub.schedule('1 of jan 00:00').onRun(async (context) => {
 	let winnersMonth = await firebase_users.getWinnersMounth(10); 
 	firebase_users.storeWinnersYear(winnersMonth); 
+	resetAllRankPointsUsersYear();
 });
 
 exports.getRankTeam = functions.https.onRequest(async (req, res) => {
@@ -518,8 +521,14 @@ exports.getRankTeam = functions.https.onRequest(async (req, res) => {
 	return res.status(200).send(team);
 });
 
+const updateTeamsNeedUpdating = async () => {
+	await api_firebase_team.getTeamsNeedUpdate();
+}
+
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	let winnersYear = await firebase_users.getWinnersYear(); 
+	 
+  	 
+	updateTeamsNeedUpdating(); 
 	
 	//firebase_users.storeWinnersYear(winnersYear); 
 

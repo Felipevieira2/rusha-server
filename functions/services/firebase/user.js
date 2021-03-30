@@ -2,6 +2,7 @@
 const admin = require('firebase-admin');
 const moment = require('moment-timezone');
 const { HLTV } = require('hltv');
+const { user } = require('firebase-functions/lib/providers/auth');
 
 module.exports.updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotification) => {
 	const reward_points = parseInt(bet.reward_points);
@@ -126,23 +127,93 @@ const getWinnersYear = async (limitRange = 10) => {
 }
 
 const storeWinnersMounth = async (arr) => {
-    let mounthCurrent = moment().tz('America/Sao_Paulo').format('MM');
-    let yearCurrent = moment().tz('America/Sao_Paulo').format('YYYY');
+    let mounthCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('MM');
+    let yearCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY');
 
-    admin.database().ref(`/awards/${yearCurrent}/${mounthCurrent}/winnersMonth/`)
+    admin
+    .database()
+    .ref(`/awards/${yearCurrent}/${mounthCurrent}/winnersMonth/`)
     .set(arr);    
 }
 
 const storeWinnersYear = async (arr) => {    
-    let yearCurrent = moment().tz('America/Sao_Paulo').format('YYYY');
+    let yearCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY');
 
-    admin.database().ref(`/awards/${yearCurrent}/winnersYear/`)
+    admin.database()
+    .ref(`/awards/${yearCurrent}/winnersYear/`)
     .set(arr);    
+}
+
+
+const resetAllRankPointsUsersMonth = async () => {    
+    let users = await getsKeysUsers();
+    
+    users.forEach( function(el){
+        recordHistoryRank(el).then( () => {
+            resetUserPoints(el.user_uid, 'rank_points_monthly', 'rank_monthly');   
+        })     
+    });     
+
+    await Promise.all(users); 
+}
+
+const resetAllRankPointsUsersYear = async () => {
+    let users = await getsKeysUsers();
+    
+    users.forEach( function(el){
+        resetUserPoints(el.user_uid, 'rank_points_yearly', 'rank_yearly');     
+    });     
+
+    await Promise.all(users); 
+} 
+
+const getsKeysUsers = async () => {  
+    return await admin 
+    .database()
+    .ref('/users/')   
+    .once('value').then( snapUser => {
+        let users = []; 
+
+        if ( snapUser.exists() ){
+            snapUser.forEach( function(el){
+                users.push({
+                    user_uid: el.key,
+                    name: el.val().name,
+                    rank_monthly: el.val().rank_monthly,
+                    rank_points_monthly: el.val().rank_points_monthly,    
+                    rank_yearly: el.val().rank_yearly,
+                    rank_points_yearly: el.val().rank_points_yearly          
+                });
+            });                      
+        }
+
+        return users;        
+	});
+}
+
+const resetUserPoints = async (user_uid, fieldName1, fieldName2) => {      
+    return await admin
+    .database()
+    .ref('/users/' + user_uid)
+    .update({ [fieldName1] : 0,  [fieldName2] : 0,})
+}
+
+const recordHistoryRank = async (user) => {  
+
+    let mounthCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('MM');
+    let yearCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY');
+
+    admin
+    .database()
+    .ref(`/users-rank-history/${yearCurrent}/${mounthCurrent}/${user.user_uid}`)
+    .set(user);        
 }
 
 module.exports = {
     getWinnersMounth,  
     storeWinnersMounth,
     storeWinnersYear,
-    getWinnersYear
+    getWinnersYear,
+    resetAllRankPointsUsersMonth,
+    resetAllRankPointsUsersYear
 }
