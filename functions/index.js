@@ -10,6 +10,7 @@ const moment = require('moment-timezone');
 
 const createMatchesRealTimeDatabase = async () => {
 	//consulto partidas pelo package non-oficial da HLTV
+
 	let result = true;
 	let matches = await api_hltv.getMatchesHLTV();
 
@@ -24,7 +25,13 @@ const createMatchesRealTimeDatabase = async () => {
 		});
 	} catch (error) {
 		console.log(error);
-		result = false;
+		let date = moment().tz('America/Sao_Paulo').format('DD/MM/YYYY hh:mm:ss');
+		var newPostRef = admin.database().ref('/errors/').push();
+
+		newPostRef.set({ 
+			datetime: date, 
+			msg: error.message, 
+			function: 'createMatchesRealTimeDatabase'})
 	}
 
 	await Promise.all(matches);
@@ -77,7 +84,7 @@ const updateBetsMatchLive = async () => {
 	
 	try {
 		let getListMatchesLive = await firebase_match.getListMatches('live', 10);
-
+		
 		getListMatchesLive.forEach(  async function (item, idx) {
 			
 			let bets = await firebase_match.getBetsOpens(item[1].match_id);
@@ -131,6 +138,17 @@ const updateBetsMatchFinish = async () => {
 	} catch (error) {
 		console.log(error);
 		response = false;
+
+		let date = moment().tz('America/Sao_Paulo').format('DD/MM/YYYY hh:mm:ss');
+
+
+		var newPostRef = admin.database().ref('/errors/').push();
+		newPostRef.set({  
+			datetime: date, 
+			msg: error.message, 
+			function: 'updateBetsMatchFinish'
+		});
+	
 	}
 
 	return response;
@@ -145,16 +163,28 @@ const getUsersDatabaseRealtime = async () => {
 //atualiza partidas que estão live no banco de dados.
 const updateMatchesLive = async () => {
 	let response = true;
-	let matchesLive = await firebase_match.getListMatches('live');	
 
 	try {
-	// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
+	
+		let matchesLive = await firebase_match.getListMatches('live');	
+		// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
 		matchesLive.forEach(async (item, idx) => {
 			await firebase_match.update(item[0], item[1].status);			
 		});	
 	} catch (error) {
 		console.log(error);
 		response = false;
+		
+
+		let date = moment().tz('America/Sao_Paulo').format('DD/MM/YYYY hh:mm:ss');
+
+
+		var newPostRef = admin.database().ref('/errors/').push();
+		newPostRef.set({ 
+			datetime: date, 
+			msg: error.message, 
+			function: 'updateMatchesLive'})
+
 	}
 
 	await Promise.all(matchesLive)
@@ -361,6 +391,8 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 });
 
 exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(async (context) => {
+
+	
 	await createMatchesRealTimeDatabase();
 	console.log('This will be run every 8 minutes!');
 	return null;
@@ -465,16 +497,16 @@ exports.updateRankingYearly = functions.pubsub.schedule('*/8 * * * *').onRun(asy
 	return null;
 });
 
-exports.storeWinnersMounthJob = functions.pubsub.schedule('1 of month 00:00').onRun(async (context) => {
-	let winnersMonth = await firebase_users.getWinnersMounth(10); 
-	firebase_users.storeWinnersYear(winnersMonth);
-	resetAllRankPointsUsersMonth(); 
+exports.storeWinnersMounthJob = functions.pubsub.schedule('1 of month 00:00').timeZone('America/Sao_Paulo').onRun(async (context) => {
+	let winnersMonth = await firebase_users.getWinnersMonth(10); 
+	firebase_users.storeWinnersMonth(winnersMonth);
+	firebase_users.resetAllRankPointsUsersMonth(); 
 });
 
-exports.storeWinnersYearJob = functions.pubsub.schedule('1 of jan 00:00').onRun(async (context) => {
-	let winnersMonth = await firebase_users.getWinnersMounth(10); 
-	firebase_users.storeWinnersYear(winnersMonth); 
-	resetAllRankPointsUsersYear();
+exports.storeWinnersYearJob = functions.pubsub.schedule('1 of jan 00:00').timeZone('America/Sao_Paulo').onRun(async (context) => {
+	let winnersYear = await firebase_users.getWinnersYear(10);
+	firebase_users.storeWinnersYear(winnersYear); 
+	firebase_users.resetAllRankPointsUsersYear();
 });
 
 exports.getRankTeam = functions.https.onRequest(async (req, res) => {
@@ -526,14 +558,8 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	 
-  	 
-	updateTeamsNeedUpdating(); 
-	
-	//firebase_users.storeWinnersYear(winnersYear); 
-
-	// let winnersMonth = await firebase_users.getWinnersMounth(); 
-	// firebase_users.storeWinnersYear(winnersMonth); 
+	   	 
+	await updateBetsMatchLive();
 
 	return res.end()
 });

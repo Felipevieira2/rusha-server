@@ -223,17 +223,18 @@ async function update  (id, status_current = '' ) {
 }
 
 const getListMatches  = async (status, limit = 2) => { 
-        return await admin.database().ref('/matches/' + status)
-            .orderByChild('updated_at')
-            .limitToFirst(limit)
-            .once('value').then(async function (snapshot) {
-                if (snapshot.exists()) {
-                    return Object.entries(snapshot.val())
-                }else {
-                    return []
-                }
-            });
-    }
+    return await admin.database()
+        .ref('/matches/' + status)
+        .orderByChild('updated_at')
+        .limitToFirst(limit)
+        .once('value').then(async function (snapshot) {
+            if (snapshot.exists()) {
+                return Object.entries(snapshot.val())
+            }else {
+                return []
+            }
+        });
+}
 
 const getListBetsMatchFinish  = async () => { 
         let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');

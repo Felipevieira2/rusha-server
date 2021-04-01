@@ -4,7 +4,7 @@ const moment = require('moment-timezone');
 const { HLTV } = require('hltv');
 const { user } = require('firebase-functions/lib/providers/auth');
 
-module.exports.updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotification) => {
+const updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotification) => {
 	const reward_points = parseInt(bet.reward_points);
 	const risk_points = parseInt(bet.risk_loss_points);
 
@@ -74,7 +74,7 @@ const getUserSnapUser = async (user_uid) => {
 	});
 }
 
-const getWinnersMounth = async (limitRange = 10) => {
+const getWinnersMonth = async (limitRange = 10) => {
 	return await admin
     .database()
     .ref('/users/')
@@ -126,7 +126,7 @@ const getWinnersYear = async (limitRange = 10) => {
 	});
 }
 
-const storeWinnersMounth = async (arr) => {
+const storeWinnersMonth = async (arr) => {
     let mounthCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('MM');
     let yearCurrent = moment().tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY');
 
@@ -210,10 +210,12 @@ const recordHistoryRank = async (user) => {
 }
 
 module.exports = {
-    getWinnersMounth,  
-    storeWinnersMounth,
+    getWinnersMonth,  
+    storeWinnersMonth,
     storeWinnersYear,
     getWinnersYear,
     resetAllRankPointsUsersMonth,
-    resetAllRankPointsUsersYear
+    resetAllRankPointsUsersYear,
+    updateScoreUsers
+    
 }
