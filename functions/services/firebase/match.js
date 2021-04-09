@@ -71,8 +71,6 @@ const formatObjMatch = async (item, updating = false) => {
         if( team1 && team2  ){
             match.team1 = team1;
             match.team2 = team2;
-            console.log('adicionado: ', team1, 'team 1')
-            console.log('adicionado: ', team2, 'team 2')
         }
     }
 
@@ -97,6 +95,7 @@ const formatObjMatch = async (item, updating = false) => {
                 map.score_team2 = matchHLTV.maps[index].result.substring(0, 5).split(":")[1].replace(/\D/g,'');
                 map.statsId = matchHLTV.maps[index].statsId;
                 map.winner = null;
+                map.finish = false;
             }                                                
 
             let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
@@ -109,8 +108,10 @@ const formatObjMatch = async (item, updating = false) => {
                     if ( Number(map.score_team1) > Number(map.score_team2) )
                     {
                         map.winner = { id: matchHLTV.team1.id, name: matchHLTV.team1.name }
+                        map.finish = true;
                     }else {
                         map.winner = { id: matchHLTV.team2.id, name: matchHLTV.team2.name }
+                        map.finish = true;
                     }
                     
                     map_current = 'map' + (+index + 2);
@@ -237,22 +238,25 @@ const getListMatches  = async (status, limit = 2) => {
 }
 
 const getListBetsMatchFinish  = async () => { 
-        let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
-        return  await admin.database().ref('/bets/opens')
-                .orderByChild('date_match')
-                .endAt(now)
-                .once('value')
-                .then(async function (betsSnap) {
-                   
-                    if (betsSnap.exists()) {
-                        let arrayBetOpens = Object.entries(betsSnap.toJSON());                        
+    console.log('oi');
+    let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
+    
+    return  await admin.database().ref('/bets/opens')
+        .orderByChild('date_match')
+        .endAt(now)
+        .once('value')
+        .then(function (betsSnap) {
+            let arrayBetOpens = [];
+            
+            if (betsSnap.exists()) {
+                arrayBetOpens = Object.entries(betsSnap.toJSON());                        
 
-                        return arrayBetOpens;
-                    }else {
-                        return []
-                    }
-                });
-    }
+                return arrayBetOpens;
+            }else {
+                return [];
+            }
+        });
+}
 
 const getMatchDB  = async function(id, status)  {     
         return  await admin.database()
@@ -275,16 +279,16 @@ const getMatchesUpcomingOldersDB = async function() {
     let sevenDayBefore = moment().tz('America/Sao_Paulo').subtract(7, 'day').format('YYYY/MM/DD');
 	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');
     return await admin.database().ref('/matches/upcoming')
-    .orderByChild('date')
-    .startAt(sevenDayBefore)
-    .endAt(today)
-    .limitToFirst(2)
-    .once('value').then(async function (snapshot) {
-        if (snapshot.exists()) {
-            return Object.entries(snapshot.val())
-        }else {
-            return []
-        }
+        .orderByChild('date')
+        .startAt(sevenDayBefore)
+        .endAt(today)
+        .limitToFirst(2)
+        .once('value').then(async function (snapshot) {
+            if (snapshot.exists()) {
+                return Object.entries(snapshot.val())
+            }else {
+                return []
+            }
     });
 }
 

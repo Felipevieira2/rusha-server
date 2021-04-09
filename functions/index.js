@@ -5,8 +5,10 @@ const firebase_match = require('./services/firebase/match');
 const firebase_bet = require('./services/firebase/bet');
 const firebase_users = require('./services/firebase/user');
 const api_firebase_team = require('./services/firebase/team');
-
+var fs = require('fs');
 const moment = require('moment-timezone');
+const { default: hltvInstance, HLTV } = require('hltv');
+const { database } = require('firebase-admin');
 
 const createMatchesRealTimeDatabase = async () => {
 	//consulto partidas pelo package non-oficial da HLTV
@@ -114,15 +116,15 @@ const updateBetsMatchFinish = async () => {
 
 	try {
 		let bets = await firebase_match.getListBetsMatchFinish();
-		
+
 		if (bets.length > 0) {
 			console.log(`Encontrei ${bets.length} apostas `);
 			
-			bets.forEach(async bet => {				
-				await firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'finish');
+			bets.forEach(bet => {				
+				firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'finish');
 			});				
 		}
-
+	
 		// getListBetsMatchFinish.forEach(bet => {
 		// 	await admin.database().ref('/matches/finish/' + bet[1].match_id)
 		// 		.once('value')
@@ -132,9 +134,6 @@ const updateBetsMatchFinish = async () => {
 		// 			}
 		// 		});
 		// });
-
-		await Promise.all(bets);				
-
 	} catch (error) {
 		console.log(error);
 		response = false;
@@ -428,14 +427,14 @@ exports.updatePlayersTeamSchedule = functions.pubsub.schedule('*/5 * * * *').onR
 	return null;
 });
 
-exports.updateBetsMatchLiveSchedule = functions.pubsub.schedule('*/6 * * * *').onRun(async (context) => {
+exports.updateBetsMatchLiveSchedule = functions.pubsub.schedule('*/4 * * * *').onRun(async (context) => {
 	await updateBetsMatchLive();
 
 	console.log('updateBetsMatchLive will be run every 3 minutes!');
 	return null;
 });
 
-exports.updateBetsMatchFinishSchedule = functions.pubsub.schedule('*/6 * * * *').onRun(async (context) => {
+exports.updateBetsMatchFinishSchedule = functions.pubsub.schedule('*/4 * * * *').onRun(async (context) => {
 	await updateBetsMatchFinish();
 
 	console.log('updateBetsMatchLive will be run every 3 minutes!');
@@ -558,10 +557,33 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	   	 
-	await updateBetsMatchLive();
+	let count = 0;
 
-	return res.end()
+	HLTV.connectToScorebot({
+		id: 2347017,
+		onScoreboardUpdate: (data, done) => {
+			count+=1;
+	
+			fs.writeFile("./scoreBoard.json", JSON.stringify(data), function(erro) {
+
+				if(erro) {
+					throw erro;
+				}
+			
+				console.log("Arquivo salvo");
+			});
+
+			done();
+
+			console.log(count, 'contador')
+		
+		  // if you call done() the socket connection will close.
+		},
+
+	})
+
+	
+
 });
 
 exports.teste2 = functions.https.onRequest(async (req, res) => {
