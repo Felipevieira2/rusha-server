@@ -278,6 +278,7 @@ const getMatchDB  = async function(id, status)  {
 const getMatchesUpcomingOldersDB = async function() {
     let sevenDayBefore = moment().tz('America/Sao_Paulo').subtract(7, 'day').format('YYYY/MM/DD');
 	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');
+    
     return await admin.database().ref('/matches/upcoming')
         .orderByChild('date')
         .startAt(sevenDayBefore)

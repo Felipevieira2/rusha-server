@@ -73,28 +73,30 @@ const getTeamHTLV = async (team_id) => {
 
 const getTeamsNeedUpdate = async () => {
 	let teams = await admin.database()
-	.ref('/teams_need_insert')
-	.orderByChild('status')
-	.equalTo(false)
-	.limitToFirst(3)
-	.once('value').then( async (snapTeam) => {
-		if ( snapTeam.exists() ) 
-		{
-			let teste = [];
+		.ref('/teams_need_insert')
+		.orderByChild('status')
+		.equalTo(false)
+		.limitToFirst(3)
+		.once('value').then(  (snapTeam) => {			
+			if ( snapTeam.exists() ) 
+			{		
+				let teamsFirebase = [];
 
-			snapTeam.forEach(  el => {
-				
-				teste.push(el.val());
+				snapTeam.forEach(  el => {
+					
+					teamsFirebase.push(el.val());
 
-			})
-			return teste;	
-		}
-	})
+				})
+				return teamsFirebase;	
+			}else {
+				return [];
+			}
+		})
 
 	teams.forEach( async el => {
 		teamHLTV = await getTeamHTLV(el.team_id);
 	
-		if ( teamHLTV ){
+		if ( teamHLTV ) {
 			let team = {};
 			team.id  = teamHLTV.id;
 			team.location = teamHLTV.location;
@@ -108,7 +110,11 @@ const getTeamsNeedUpdate = async () => {
 				.ref('/teams/' + team.id)
 				.update(JSON.parse(JSON.stringify(team)))
 				.then(() => {
-					admin.database().ref('/teams_need_insert/' + team.id).update({status: true, updated_at: moment().tz('America/Sao_Paulo').format()});
+					admin.database()
+						.ref('/teams_need_insert/' + team.id)
+						.update({
+							status: true, updated_at: moment().tz('America/Sao_Paulo').format()
+						});
 				});
 		}
 	});

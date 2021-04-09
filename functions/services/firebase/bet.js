@@ -50,13 +50,12 @@ const check_bets = async (bet, match) => {
 	
 	let result = ''
 	let bet_result = {
-		map() {				
-			let mapPlayed = Object.hasOwnProperty.bind(match.result.maps[type_bet.type] || {})('winner');
+		map() {			
 			let map_finish = match.result.maps[type_bet.type].finish;
 			
-			if (map_finish && mapPlayed) {
+			if (map_finish) {
 				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';			
-			} else if ( match.status == 'Match over' || match.status == "Match postponed" ) {
+			} else if ( (match.status == 'Match over' || match.status == "Match postponed") && !map_finish) {
 				result = 'map not played';
 			}		
 	
@@ -65,15 +64,13 @@ const check_bets = async (bet, match) => {
 			let isThereWinner = match.result.winnerTeam != undefined;
 			let isPostponed = match.status == "Match postponed";
 
-			if ( isPostponed )
-			{
+			if (isPostponed) {
 				result = 'map not played';
 			
-			}else {
-				if (isThereWinner) {
-					result = bet.team_id == match.result.winnerTeam.id ? 'win' : 'lost';
-				}
-			}			
+			}else if (isThereWinner) {
+				result = bet.team_id == match.result.winnerTeam.id ? 'win' : 'lost';
+			}
+					
 		},
 	}
 

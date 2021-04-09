@@ -161,11 +161,9 @@ const getUsersDatabaseRealtime = async () => {
 
 //atualiza partidas que estão live no banco de dados.
 const updateMatchesLive = async () => {
-	let response = true;
+	try {	
+		let matchesLive = await firebase_match.getListMatches('live');
 
-	try {
-	
-		let matchesLive = await firebase_match.getListMatches('live');	
 		// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
 		matchesLive.forEach(async (item, idx) => {
 			await firebase_match.update(item[0], item[1].status);			
@@ -179,6 +177,7 @@ const updateMatchesLive = async () => {
 
 
 		var newPostRef = admin.database().ref('/errors/').push();
+
 		newPostRef.set({ 
 			datetime: date, 
 			msg: error.message, 
@@ -186,7 +185,6 @@ const updateMatchesLive = async () => {
 
 	}
 
-	await Promise.all(matchesLive)
 };
 
 exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) => {
@@ -557,32 +555,32 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	let count = 0;
+	// let count = 0;
 
-	HLTV.connectToScorebot({
-		id: 2347017,
-		onScoreboardUpdate: (data, done) => {
-			count+=1;
+	// HLTV.connectToScorebot({
+	// 	id: 2347017,
+	// 	onScoreboardUpdate: (data, done) => {
+	// 		count+=1;
 	
-			fs.writeFile("./scoreBoard.json", JSON.stringify(data), function(erro) {
+	// 		fs.writeFile("./scoreBoard.json", JSON.stringify(data), function(erro) {
 
-				if(erro) {
-					throw erro;
-				}
+	// 			if(erro) {
+	// 				throw erro;
+	// 			}
 			
-				console.log("Arquivo salvo");
-			});
+	// 			console.log("Arquivo salvo");
+	// 		});
 
-			done();
+	// 		done();
 
-			console.log(count, 'contador')
+	// 		console.log(count, 'contador')
 		
-		  // if you call done() the socket connection will close.
-		},
+	// 	  // if you call done() the socket connection will close.
+	// 	},
 
-	})
+	// })
 
-	
+	await updateTeamsNeedUpdating();
 
 });
 
@@ -647,7 +645,8 @@ exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(eve
 			.ref('/users')
 			.child(event.val().user_uid)
 			.child('bet_points')
-			.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().cost)))).then(() => {
+			.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().cost))))
+			.then(() => {
 				console.log('User: ', event.val().user_uid, ' efetuou uma aposta!',
 					'Custo: ', -Math.abs(Number(event.val().cost)),
 					'Aposta Key: ', event.key)
