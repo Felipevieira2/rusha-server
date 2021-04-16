@@ -387,9 +387,7 @@ exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) 
 	return res.status(200).send(matches_formatted.data);
 });
 
-exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(async (context) => {
-
-	
+exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(async (context) => {	
 	await createMatchesRealTimeDatabase();
 	console.log('This will be run every 8 minutes!');
 	return null;
@@ -580,7 +578,7 @@ exports.teste1 = functions.https.onRequest(async (req, res) => {
 
 	// })
 
-	await updateTeamsNeedUpdating();
+	await createMatchesRealTimeDatabase();
 
 });
 

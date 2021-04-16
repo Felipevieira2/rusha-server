@@ -78,9 +78,10 @@ const formatObjMatch = async (item, updating = false) => {
     {   
         let [team1, team2] = await Promise.all([api_firebase_team.getRankTeamMatch(matchHLTV.team1.id),
             api_firebase_team.getRankTeamMatch(matchHLTV.team2.id)]);
-
-        //processo de captura de resultados				
-        let gameTypeBestOf = matchHLTV.format.replace(/\D/g,'');		                
+        console.log(matchHLTV.format)
+        //processo de captura de resultados	
+        			
+        let gameTypeBestOf = matchHLTV.format ? matchHLTV.format.replace(/\D/g,'') : 0;                
         let result = {};
         let maps = {};
         let map_current = item.live ? 'map1' : 'N/D';                
@@ -133,9 +134,7 @@ const formatObjMatch = async (item, updating = false) => {
         match.team1 = team1;
         match.team2 = team2;
     }
-
     
-
     return match
 }
 
@@ -147,7 +146,7 @@ const  store = async (matchHLTV) => {
     ] = await Promise.all([
         isMatchExists(matchHLTV.id, 'live'),
         isMatchExists(matchHLTV.id, 'finish'),
-        formatObjMatch(matchHLTV)
+        formatObjMatch(matchHLTV, false)
     ]);    
     
     await admin.database().ref('/matches/upcoming/' + matchFormatted.match_id).once('value').then( async function(snapshot) {							
