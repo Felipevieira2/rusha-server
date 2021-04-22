@@ -78,7 +78,7 @@ const formatObjMatch = async (item, updating = false) => {
     {   
         let [team1, team2] = await Promise.all([api_firebase_team.getRankTeamMatch(matchHLTV.team1.id),
             api_firebase_team.getRankTeamMatch(matchHLTV.team2.id)]);
-        console.log(matchHLTV.format)
+
         //processo de captura de resultados	
         			
         let gameTypeBestOf = matchHLTV.format ? matchHLTV.format.replace(/\D/g,'') : 0;                
@@ -171,16 +171,15 @@ const  store = async (matchHLTV) => {
     });	
 }
 
-async function update  (id, status_current = '' ) {
+async function update  (id, status_current = '', ) {
     matchHLTV = await HLTV.getMatch({id: id}).then((res) => {	        								
         return res;
     }).catch(error => {								
         console.log(error, 'Erro na função [module.exports.store] getMatch HLTV');
         response = false;	
     });		
-
-    if ( matchHLTV )
-    {		    
+    console.log(matchHLTV)
+    if ( matchHLTV ) {		    
         let match = await formatObjMatch(matchHLTV, updating = true);
              
         switch (match.status.toLowerCase()) {
@@ -218,6 +217,18 @@ async function update  (id, status_current = '' ) {
             }
         });                      
     }else {
+       
+        await admin.database()
+        .ref( '/matches/finish/'  + id)
+        .once('value').then( (snap) => {
+            if( snap.exists() ) {
+                admin
+                .database()
+                .ref('/matches/upcoming/'+ id)
+                .remove();
+            }
+        }); 
+
         console.log('não encontrada partida na hltv')
     }
 }
@@ -237,7 +248,6 @@ const getListMatches  = async (status, limit = 2) => {
 }
 
 const getListBetsMatchFinish  = async () => { 
-    console.log('oi');
     let now = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm');
     
     return  await admin.database().ref('/bets/opens')
@@ -275,16 +285,17 @@ const getMatchDB  = async function(id, status)  {
     }
 
 const getMatchesUpcomingOldersDB = async function() {
-    let sevenDayBefore = moment().tz('America/Sao_Paulo').subtract(7, 'day').format('YYYY/MM/DD');
-	let today = moment().tz('America/Sao_Paulo').format('YYYY/MM/DD');
+    let sevenDayBefore = moment().tz('America/Sao_Paulo').subtract(7, 'day').format('YYYY/MM/DD hh:mm:ss');
+	let today = moment().tz('America/Sao_Paulo').add(1, 'days').format('YYYY/MM/DD');
     
     return await admin.database().ref('/matches/upcoming')
         .orderByChild('date')
         .startAt(sevenDayBefore)
         .endAt(today)
-        .limitToFirst(2)
-        .once('value').then(async function (snapshot) {
+        .limitToFirst(2)     
+        .once('value').then(function (snapshot) {
             if (snapshot.exists()) {
+                
                 return Object.entries(snapshot.val())
             }else {
                 return []

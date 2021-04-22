@@ -11,18 +11,20 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 		let match = await firebase_match.getMatchDB(match_id, match_status);
 		
 		if ( match.result == undefined ){
+			
 			matchHLTV = await HLTV.getMatch({id: match_id}).then((res) => {	        								
 				return res;
 			}).catch(error => {								
 				console.log(error, 'Erro na função [module.exports.store] getMatch HLTV');
 				response = false;	
 			});		
-
+			
 			match = await firebase_match.formatObjMatch(matchHLTV, updating = true);
-		}
-
-		let result = await check_bets(bet, match);
 		
+		}
+		
+		let result = await check_bets(bet, match);
+	
 		if ( result != '' ) {
 			bet.result = result;
 			
@@ -46,19 +48,17 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 
 const check_bets = async (bet, match) => {    
 	
-	let type_bet = await getTypeBet(bet.type_bet_id);  
-	
-	let result = ''
+	let type_bet = await getTypeBet(bet.type_bet_id);  	
+	let result = '';
 	let bet_result = {
-		map() {			
-			let map_finish = match.result.maps[type_bet.type].finish;
-			
+		map() {								
+			let map_finish = match.result.maps[type_bet.type].finish;		
+
 			if (map_finish) {
-				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';			
+				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
 			} else if ( (match.status == 'Match over' || match.status == "Match postponed") && !map_finish) {
 				result = 'map not played';
-			}		
-	
+			}			
 		},		
 		game() {		
 			let isThereWinner = match.result.winnerTeam != undefined;
@@ -73,14 +73,13 @@ const check_bets = async (bet, match) => {
 					
 		},
 	}
-
+	
 	bet_result[type_bet._type]();
 
 	return result;
 }
 
 const update = async (betKey, betObj, result, match = null) => {
-
 
 	try {
 		let notification = await getTextToNotification(result, betObj, match);

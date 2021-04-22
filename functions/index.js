@@ -65,7 +65,7 @@ const updateMatchesUpcoming = async () => {
 const updateMatchesUpcomingOlders = async () => {
 	let response = true;
 	let matchesUpcomingOlders = await firebase_match.getMatchesUpcomingOldersDB();	
-	
+	console.log(matchesUpcomingOlders)
 	try {
 	// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
 		matchesUpcomingOlders.forEach(async (item, idx) => {
@@ -553,6 +553,7 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
+	await updateMatchesUpcomingOlders();
 	// let count = 0;
 
 	// HLTV.connectToScorebot({
@@ -578,7 +579,7 @@ exports.teste1 = functions.https.onRequest(async (req, res) => {
 
 	// })
 
-	await createMatchesRealTimeDatabase();
+	
 
 });
 
