@@ -64,14 +64,18 @@ const formatObjMatch = async (item, updating = false) => {
     };
 
     if( !updating ){
-        let [team1,  team2] = await Promise.all([
+        if( match.team1_id &&  match.team2_id)
+        {
+            let [team1,  team2] = await Promise.all([
                 checkIfTeamHaveRanking(match.team1_id),
                 checkIfTeamHaveRanking(match.team2_id)]);
 
-        if( team1 && team2  ){
-            match.team1 = team1;
-            match.team2 = team2;
+            if( team1 && team2  ){
+                match.team1 = team1;
+                match.team2 = team2;
+            }
         }
+      
     }
 
     if ( updating )
@@ -88,8 +92,7 @@ const formatObjMatch = async (item, updating = false) => {
 
         for (let index = 0; index < gameTypeBestOf; index++) {                    
             let map = {};	
-            if ( typeof matchHLTV.maps[index].result !== 'undefined') 
-            {
+            if ( typeof matchHLTV.maps[index].result !== 'undefined' ) {
                 map.name = matchHLTV.maps[index].name;			
                 map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
                 map.score_team1 = matchHLTV.maps[index].result.substring(0, 5).split(":")[0].replace(/\D/g,'');
@@ -102,8 +105,7 @@ const formatObjMatch = async (item, updating = false) => {
             let any_team_have_more_than_15_rounds = Number(map.score_team1) > 15 || Number(map.score_team2) > 15;
             
             //verifica se a partida tem algum time com score maior que 15						
-            if ( any_team_have_more_than_15_rounds  )								
-            {	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2 
+            if ( any_team_have_more_than_15_rounds  ){	//se houve match point alcançado a diferença vai maior que 1, ou seja: 2 
                 if ( Math.abs(Number(map.score_team1) - Number(map.score_team2)) > 1 )
                 {	//gravarei o vencedor! 
                     if ( Number(map.score_team1) > Number(map.score_team2) )
@@ -131,8 +133,8 @@ const formatObjMatch = async (item, updating = false) => {
         match.result         = result;
         match.map_current    = map_current;
         match.validated_bets = false;
-        match.team1 = team1;
-        match.team2 = team2;
+        team1 ? match.team1 = team1 : null;
+        team2 ? match.team2 = team2 : null;       
     }
     
     return match

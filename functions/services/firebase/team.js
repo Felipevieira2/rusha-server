@@ -5,7 +5,8 @@ const { HLTV } = require('hltv');
 const getRankTeamMatch = async (team_id) => { 	
 	let team = {};
 
-	await admin.database()
+	if ( Number(team_id) > 0 ) {
+		await admin.database()
 			.ref('/teams/' + team_id)
 			.once('value').then( async (snapTeam) => {
 				if ( snapTeam.exists() ) 
@@ -40,19 +41,20 @@ const getRankTeamMatch = async (team_id) => {
 					await admin.database().ref('/teams/' + team.id).update(JSON.parse(JSON.stringify(team)));
 				}
 			});		
-	
-	let tier = await admin.database().ref('/tier-by-rank/' + team.rank).once('value').then( function (snapTier) { 
-		if ( snapTier.exists() )
-		{
-			return snapTier.val();
-		}else {
-			return { tier: 7 }
-		}		
-	});
 
-	team.tier = tier.tier;
+		let tier = await admin.database().ref('/tier-by-rank/' + team.rank).once('value').then( function (snapTier) { 
+			if ( snapTier.exists() )
+			{
+				return snapTier.val();
+			}else {
+				return { tier: 7 }
+			}		
+		});
 
-    return team;
+		team.tier = tier.tier;		
+	}
+
+	return team;
 }
 
 

@@ -10,7 +10,7 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 	try {
 		let match = await firebase_match.getMatchDB(match_id, match_status);
 		
-		if ( match.result == undefined ){
+		if (match.result == undefined) {
 			
 			matchHLTV = await HLTV.getMatch({id: match_id}).then((res) => {	        								
 				return res;
@@ -19,8 +19,7 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 				response = false;	
 			});		
 			
-			match = await firebase_match.formatObjMatch(matchHLTV, updating = true);
-		
+			match = await firebase_match.formatObjMatch(matchHLTV, updating = true);	
 		}
 		
 		let result = await check_bets(bet, match);
@@ -46,19 +45,17 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
     
 }
 
-const check_bets = async (bet, match) => {    
-	
+const check_bets = async (bet, match) => {   	
 	let type_bet = await getTypeBet(bet.type_bet_id);  	
 	let result = '';
 	let bet_result = {
-		map() {								
-			let map_finish = match.result.maps[type_bet.type].finish;		
-
-			if (map_finish) {
-				result = bet.team_id == match.result.maps[type_bet.type].winner.id ? 'win' : 'lost';
-			} else if ( (match.status == 'Match over' || match.status == "Match postponed") && !map_finish) {
+		map() {		
+			if (match.result.maps[type_bet.type].hasOwnProperty('winner')) {
+				result = bet.team_id == match.result.maps[type_bet.type].winner.id  ? 'win' : 'lost';
+											
+			}else if (match.status == "Match over" || match.status == 'Match postponed'  ) {
 				result = 'map not played';
-			}			
+			}		
 		},		
 		game() {		
 			let isThereWinner = match.result.winnerTeam != undefined;
@@ -80,14 +77,13 @@ const check_bets = async (bet, match) => {
 }
 
 const update = async (betKey, betObj, result, match = null) => {
-
 	try {
 		let notification = await getTextToNotification(result, betObj, match);
 
 		admin.database().ref('/bets/finish/' + betKey).update(betObj).then ( async snap => {
-			console.log( betObj, " aposta inserida nos finalizados");
+			//console.log( betObj, " aposta inserida nos finalizados");
 			admin.database().ref('/bets/opens/' +  betKey).remove().then( async snap => {
-				console.log( betObj, "Removido bet dos abertos" );
+				//console.log( betObj, "Removido bet dos abertos" );
 				firebase_user.updateScoreUsers(betObj, result, betKey, notification.title, notification.message);
 			}).catch( error => {
 				console.log(error)
@@ -100,9 +96,9 @@ const update = async (betKey, betObj, result, match = null) => {
 		let pathUserBetsOpens = '/user-bets/' + betObj.user_uid + '/opens/' + betKey;
 	
 		admin.database().ref(pathUserBetsFinishes).update(betObj).then ( async snap => {
-			console.log('adicionado a aposta user-bets finalizados');
+			//console.log('adicionado a aposta user-bets finalizados');
 			admin.database().ref(pathUserBetsOpens).remove().then( async snap => {
-				console.log("Removido aposta user-bets opens");
+				//console.log("Removido aposta user-bets opens");
 			} ).catch( error => {
 				console.log(error)
 				response = false;
