@@ -50,9 +50,18 @@ const check_bets = async (bet, match) => {
 	let result = '';
 	let bet_result = {
 		map() {		
-			if (match.result.maps[type_bet.type].hasOwnProperty('winner')) {
-				result = bet.team_id == match.result.maps[type_bet.type].winner.id  ? 'win' : 'lost';
-											
+			if (match.result.maps[type_bet.type].hasOwnProperty('winner') && match.result.maps[type_bet.type].finish) {
+				if(Number(match.result.maps[type_bet.type].winner.id) > 0 && (match.match_id == bet.match_id))
+				{
+					if( (bet.team_id == match.result.maps[type_bet.type].winner.id) &&
+						(match.result.maps[type_bet.type].winner) ) {
+						result =  'win'; 
+					}else if ( match.result.maps[type_bet.type].finish ) {
+						result =  'lost'; 
+					}
+					
+				}
+														
 			}else if (match.status == "Match over" || match.status == 'Match postponed'  ) {
 				result = 'map not played';
 			}		

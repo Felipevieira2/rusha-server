@@ -78,8 +78,7 @@ const formatObjMatch = async (item, updating = false) => {
       
     }
 
-    if ( updating )
-    {   
+    if ( updating ) {   
         let [team1, team2] = await Promise.all([api_firebase_team.getRankTeamMatch(matchHLTV.team1.id),
             api_firebase_team.getRankTeamMatch(matchHLTV.team2.id)]);
 

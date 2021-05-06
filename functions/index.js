@@ -9,6 +9,8 @@ var fs = require('fs');
 const moment = require('moment-timezone');
 const { default: hltvInstance, HLTV } = require('hltv');
 const { database } = require('firebase-admin');
+const axios = require('axios');
+
 
 const createMatchesRealTimeDatabase = async () => {
 	//consulto partidas pelo package non-oficial da HLTV
@@ -163,6 +165,7 @@ const updateMatchesLive = async () => {
 	try {	
 		let matchesLive = await firebase_match.getListMatches('live');
 
+		console.log(matchesLive)
 		// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
 		matchesLive.forEach(async (item, idx) => {
 			await firebase_match.update(item[0], item[1].status);			
@@ -392,6 +395,35 @@ exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(a
 	return null;
 });
 
+
+exports.setLeadBitrix = functions.https.onRequest(async (req, res) => {
+	let url = "https://medfit.bitrix24.com.br/rest/1/jv899bxkerqprws2/crm.lead.add" 
+	
+	let params = `?FIELD
+	S[NAME]=${req.body.name}
+	&FIELDS[EMAIL][0][VALUE]=${req.body.email}
+	&FIELDS[PHONE][0][VALUE]=${req.body.phone}
+	&FIELDS[UF_CRM_1587994360221]=${req.body.obs}
+	&FIELDS[SOURCE_ID]=WEB`
+
+	axios({
+		method: "get",
+		url: url+params,
+		data: null,
+		headers: { "Content-Type": "multipart/form-data" },
+	})
+	.then(function (response) {
+		//handle success
+		console.log(response);
+	})
+	.catch(function (response) {
+		//handle error
+		console.log(response);
+	});
+
+	return res.end();
+});
+
 exports.updateMatchesUpcomingOldersSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
 	await updateMatchesUpcomingOlders();
 	await updateTeamsNeedUpdating();
@@ -399,8 +431,6 @@ exports.updateMatchesUpcomingOldersSchedule = functions.pubsub.schedule('*/5 * *
 	console.log('This will be run every 8 minutes!');
 	return null;
 });
-
-
 
 exports.updateMatchesUpcomingSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
 	await updateMatchesUpcoming();
@@ -552,7 +582,7 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await updateBetsMatchFinish();
+	await updateMatchesLive();
 	// let count = 0;
 
 	// HLTV.connectToScorebot({
