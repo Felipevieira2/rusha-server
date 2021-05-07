@@ -307,8 +307,7 @@ const getMatchesUpcomingOldersDB = async function() {
 
 const getBetsOpens = async (match_id) => {
     return await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match_id))
-        .once('value').then(function (snapBets) {
-            
+        .once('value').then(function (snapBets) {            
             if (snapBets.exists()) {
                 return Object.entries(snapBets.val());
             } else {

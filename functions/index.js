@@ -98,7 +98,8 @@ const updateBetsMatchLive = async () => {
 
 				bets.forEach(async bet => {
 					await firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'live');
-				});				
+				});
+								
 			}
 		});
 
@@ -582,7 +583,7 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await updateMatchesLive();
+	await updateBetsMatchLive();
 	// let count = 0;
 
 	// HLTV.connectToScorebot({
