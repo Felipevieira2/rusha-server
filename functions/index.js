@@ -19,8 +19,7 @@ const createMatchesRealTimeDatabase = async () => {
 	let matches = await api_hltv.getMatchesHLTV();
 
 	try {
-		matches.forEach(async (matchHLTV, idx) => {
-		
+		matches.forEach(async (matchHLTV, idx) => {		
 			if (matchHLTV.team1 && matchHLTV.team2) {				
 				console.log(`passei o id ${matchHLTV.id}`);
 				await firebase_match.store(matchHLTV);
@@ -97,9 +96,8 @@ const updateBetsMatchLive = async () => {
 				console.log('Match: ' + item[1].match_id);
 
 				bets.forEach(async bet => {
-					await firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'live');
-				});
-								
+					firebase_bet.validBet(bet[0], bet[1], bet[1].match_id, 'live');
+				});								
 			}
 		});
 

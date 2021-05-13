@@ -6,31 +6,12 @@ const firebase_match = require('./match');
 const firebase_user = require('./user');
 
 module.exports.validBet = async (key, bet, match_id, match_status) =>  { 
-
 	try {
 		let match = await firebase_match.getMatchDB(match_id, match_status);
-		
-		if (match.result == undefined) {
-			
-			matchHLTV = await HLTV.getMatch({id: match_id}).then((res) => {	        								
-				return res;
-			}).catch(error => {								
-				console.log(error, 'Erro na função [module.exports.store] getMatch HLTV');
-				response = false;	
-			});		
-			
-			match = await firebase_match.formatObjMatch(matchHLTV, updating = true);	
-		}
-		
-		let result = await check_bets(bet, match);
-	
-		if ( result != '' ) {
-			bet.result = result;
-			
-			update(key, bet, result, match);
-		}else {
-			console.log(`Não existe resultado ainda para aposta!`)
-		}
+		console.log(match_id)
+		if (match.result) {
+			check_bets(bet, match, key);			
+		}				
 	} catch (error) {
 		let date = moment().tz('America/Sao_Paulo').format('DD/MM/YYYY hh:mm:ss');
 
@@ -41,28 +22,35 @@ module.exports.validBet = async (key, bet, match_id, match_status) =>  {
 			msg: error.message, 
 			function: 'validBet',
 			infoAdd: bet})
-	}
-    
+	}    
 }
 
-const check_bets = async (bet, match) => {   	
+const check_bets = async (bet, match, key) => {   	
 	let type_bet = await getTypeBet(bet.type_bet_id);  	
 	let result = '';
+
 	let bet_result = {
-		map() {		 
-			if (match.result.maps[type_bet.type].finish && match.map_current != type_bet ) {
-				if (!match.result.maps[type_bet.type].winner.id) {
-					return result;
-				}
-				if( match.result.maps[type_bet.type].winner.id == bet.team_id  ) {
-					result = 'win'
+		map() {	
+			console.log(`///////// INICIO DE VALIDAÇÃO DE APOSTA //////////`);
+			console.log(`Checando aposta name: ${bet.type_bet_name} sua escolha id: ${bet.team_id}`);
+			console.log(`Jogo: ${bet.match_id}`);			
+
+			if ( match.result.maps[type_bet.type].finish && match.result.maps[type_bet.type].winner ) {
+				console.log(`${ bet.type_bet_name }: finaliza = ${match.result.maps[type_bet.type].finish}`);
+				console.log(`${ bet.type_bet_name }: possuí vencedor = ${match.result.maps[type_bet.type].winner.id}`);	
+				if (Number(match.result.maps[type_bet.type].winner.id) == Number(bet.team_id) ) { 
+					
+					result = "win";
 				}else {
-					result = 'lost'
-				}
-														
+					result = "lost";
+				}													
 			}else if (match.status == "Match over" || match.status == 'Match postponed'  ) {
 				result = 'map not played';
-			}		
+			}
+			
+			console.log(`resultado = ${result}`);
+
+			console.log(`///////// FIM DE VALIDAÇÃO DE APOSTA //////////`);
 		},		
 		game() {		
 			let isThereWinner = match.result.winnerTeam != undefined;
@@ -73,14 +61,20 @@ const check_bets = async (bet, match) => {
 			
 			}else if (isThereWinner) {
 				result = bet.team_id == match.result.winnerTeam.id ? 'win' : 'lost';
-			}
-					
+			}					
 		},
 	}
 	
 	bet_result[type_bet._type]();
 
-	return result;
+	if ( result ) {
+		bet.result = result;
+		
+		update(key, bet, result, match);
+	}else {
+		console.log(`Não existe resultado ainda para aposta!`)
+	}
+
 }
 
 const update = async (betKey, betObj, result, match = null) => {
@@ -128,7 +122,7 @@ const getTextToNotification = async (result, bet, match) => {
 
 	let getMessage = {
 		win(){
-			return `"Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos!"`;
+			return `Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos!`;
 		},
 		lost(){
 			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu 15 pontos`;

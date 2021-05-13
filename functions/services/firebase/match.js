@@ -51,7 +51,7 @@ const formatObjMatch = async (item, updating = false) => {
         team2_name: item.team2  ? item.team2.name : '',
         team1: item.team1  ? item.team1 : '',
         team2: item.team2  ? item.team2 : '',
-        format    : item.format ? item.format : '',
+        format    : typeof item.format === 'undefined'  ?  '' : item.format,
         event_id  : typeof item.event.id === 'undefined' ? '' : item.event.id,
         title     : item.title ? item.title : '', 
         event_name: item.event.name === 'undefined'  ? '' : item.event.name,
@@ -306,6 +306,7 @@ const getMatchesUpcomingOldersDB = async function() {
 
 
 const getBetsOpens = async (match_id) => {
+   
     return await admin.database().ref('/bets/opens').orderByChild('match_id').equalTo(Number(match_id))
         .once('value').then(function (snapBets) {            
             if (snapBets.exists()) {
