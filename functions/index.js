@@ -111,6 +111,7 @@ const updateBetsMatchLive = async () => {
 	return response;
 }
 
+
 const updateBetsMatchFinish = async () => {
 	let response = true;
 
@@ -423,6 +424,32 @@ exports.setLeadBitrix = functions.https.onRequest(async (req, res) => {
 	return res.end();
 });
 
+
+exports.teste3 = functions.https.onRequest(async (req, res) => {
+
+	let bets_users_win = await admin.database()
+	.ref('/user-bets/oQ8KaY6CiNTqBjXKbrMEXyk7Xau2/finish') 
+		.orderByChild('result')
+		.equalTo('lost')		   
+		.once('value').then(function (snapshot) {
+			if (snapshot.exists()) {
+				
+				return Object.entries(snapshot.val())
+			}else {
+				return []
+			}
+	});
+
+	let points_win = 0;
+
+	bets_users_win.forEach( item => { 
+		
+		points_win += Number(item[1].risk_loss_points);
+	});
+
+	return res.json({value: points_win});
+});
+
 exports.updateMatchesUpcomingOldersSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
 	await updateMatchesUpcomingOlders();
 	await updateTeamsNeedUpdating();
@@ -581,89 +608,8 @@ const updateTeamsNeedUpdating = async () => {
 }
 
 exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await updateBetsMatchLive();
-	// let count = 0;
+	await updateBetsMatchFinish();
 
-	// HLTV.connectToScorebot({
-	// 	id: 2347017,
-	// 	onScoreboardUpdate: (data, done) => {
-	// 		count+=1;
-	
-	// 		fs.writeFile("./scoreBoard.json", JSON.stringify(data), function(erro) {
-
-	// 			if(erro) {
-	// 				throw erro;
-	// 			}
-			
-	// 			console.log("Arquivo salvo");
-	// 		});
-
-	// 		done();
-
-	// 		console.log(count, 'contador')
-		
-	// 	  // if you call done() the socket connection will close.
-	// 	},
-
-	// })
-
-	
-
-});
-
-exports.teste2 = functions.https.onRequest(async (req, res) => {
-	const bet = {
-		cost:
-			10,
-		date_match:
-			"2021/02/16 06:00",
-		datetime:
-			"2021/02/15 16:34",
-		match_id:
-			2346596,
-		result:
-			"",
-		reward_points:
-			"25",
-		risk_loss_points:
-			"13",
-		team1_percentual_rank:
-			50,
-		team2_percentual_rank:
-			50,
-		team_id:
-			10998,
-		team_name:
-			"Ninja",
-		type_bet_id:
-			3,
-		type_bet_name:
-			"Vencedor - Map 2",
-		user_uid:
-			"sV4LxdQYtNYl8mGStTXhdrWSLM52"
-	}
-
-	var newBetKey = admin.database().ref().child('bets').push().key;
-	var updates = {};
-
-	updates['/bets/opens/' + newBetKey] = bet;
-	updates['/user-bets/v5ZakbLgrBeJs3nDIyouJViSUcG2/opens/' + newBetKey] = bet;
-
-	admin.database().ref().update(updates, function (error) {
-		if (error) {
-			// The write failed...
-			console.log(error);
-			console.log("error in insert bet, | File: Bet.js | Function: recordBet() |");
-
-			return false;
-		} else {
-			//Data saved successfully!
-
-
-		}
-	});
-
-	return res.json('match1');
 });
 
 exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(event => {
@@ -678,6 +624,82 @@ exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(eve
 					'Custo: ', -Math.abs(Number(event.val().cost)),
 					'Aposta Key: ', event.key)
 			}).catch(error => { console.log(error) });
+	} else {
+		return Promise.reject('Unknown error');
+	}
+});
+
+const getTextToNotification = async (result, bet, match) => {	
+	let team1_name = match.team1_name;
+	let team2_name = match.team2_name;
+	let choice_team_name = bet.team_name;
+
+	let getMessage = {
+		win(){
+			return `Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos!`;
+		},
+		lost(){
+			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu 15 pontos`;
+		},
+		mapnotplayed(){
+			return `Sua aposta no(a) ${choice_team_name} foi estornada, pois o mapa ou evento não foi disputado!`;
+		}		
+	}
+
+	let notifications = { 
+		title: `${team1_name} x ${team2_name} | ${bet.type_bet_name}`,
+		message: getMessage[result.split(' ').join('')]()
+	}
+ 
+	return notifications;
+}
+
+exports.update_points_bet_finish = functions.database.ref('/bets/finish/{key}').onCreate(event => {	
+	if (event.exists()) {
+		if( event.val().result == 'win' ) {		
+			admin.database()
+			.ref('/users')
+			.child(event.val().user_uid)
+			.child('rank_points_monthly')
+			.set(admin.database.ServerValue.increment(Number(event.val().reward_points)))
+			.then(() => {
+				console.log('User: ', event.val().user_uid, ' Efetuou uma aposta!',
+					'pontos ganhos: ', Number(event.val().reward_points),
+					'Aposta Key: ', event.key)
+			}).catch(error => { console.log(error) });
+
+			admin.database()
+			.ref('/users')
+			.child(event.val().user_uid)
+			.child('rank_points_yearly')
+			.set(admin.database.ServerValue.increment(Number(event.val().reward_points)))
+			.then(() => {
+				
+			}).catch(error => { console.log(error) });
+
+		}else if (event.val().result == 'lost') {				
+			admin
+			.database()
+			.ref('/users')
+			.child(event.val().user_uid)
+			.child('rank_points_monthly')
+			.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().risk_loss_points))))
+			.then(() => {
+				console.log('User: ', event.val().user_uid, ' Efetuou uma aposta!',
+					'pontos perdidos: ', -Math.abs(Number(event.val().risk_loss_points)),
+					'Aposta Key: ', event.key)
+			}).catch(error => { console.log(error) });
+
+			admin
+			.database()
+			.ref('/users')
+			.child(event.val().user_uid)
+			.child('rank_points_yearly')
+			.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().risk_loss_points))))
+			.then(() => {
+			
+			}).catch(error => { console.log(error) });
+		}	
 	} else {
 		return Promise.reject('Unknown error');
 	}

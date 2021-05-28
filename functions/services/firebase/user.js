@@ -4,7 +4,7 @@ const moment = require('moment-timezone');
 const { HLTV } = require('hltv');
 const { user } = require('firebase-functions/lib/providers/auth');
 
-const updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotification) => {
+const setNotifications = async (bet, result, betKey, titleNotification, msgNotification) => {
 	const reward_points = parseInt(bet.reward_points);
 	const risk_points = parseInt(bet.risk_loss_points);
 
@@ -38,18 +38,10 @@ const updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotif
                 let new_points_yearly = result == 'win' ? Number(points_yearly) + Number(reward_points) : Number(points_yearly) - Number(risk_points);
                 let type = result == 'win' ? 'win' : 'lost';
 
-                if (new_points_monthly < 0) {
-                    new_points_monthly = 0;
-                }
-
-                if (new_points_yearly < 0) {
-                    new_points_yearly = 0;
-                }
-
-                userSnapUser.ref.update({
-                    rank_points_monthly: new_points_monthly.toFixed(0),
-                    rank_points_yearly: new_points_yearly.toFixed(0),
-                });
+                // userSnapUser.ref.update({
+                //     rank_points_monthly: new_points_monthly.toFixed(0),
+                //     rank_points_yearly: new_points_yearly.toFixed(0),
+                // });
 
                 let newNotification = {
                     type: type,
@@ -64,7 +56,6 @@ const updateScoreUsers = async (bet, result, betKey, titleNotification, msgNotif
 
                 admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then(snapUser => { });
             }
-
         })
 }
 
@@ -216,6 +207,5 @@ module.exports = {
     getWinnersYear,
     resetAllRankPointsUsersMonth,
     resetAllRankPointsUsersYear,
-    updateScoreUsers
-    
+    setNotifications    
 }

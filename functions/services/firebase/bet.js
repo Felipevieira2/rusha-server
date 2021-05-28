@@ -8,10 +8,30 @@ const firebase_user = require('./user');
 module.exports.validBet = async (key, bet, match_id, match_status) =>  { 
 	try {
 		let match = await firebase_match.getMatchDB(match_id, match_status);
-		console.log(match_id)
+		
 		if (match.result) {
-			check_bets(bet, match, key);			
-		}				
+			check_bets(bet, match, key);	
+			
+			return 
+		}		
+
+		if (match) { 			
+			matchHLTV = await HLTV.getMatch({ id: match_id }).then((res) => {
+			
+				
+				return res;
+	
+			});
+
+			let matchFormatada = await firebase_match.formatObjMatch(matchHLTV, true);
+
+			if (matchFormatada.result) {
+				check_bets(bet, matchFormatada, key);	
+				
+				return 
+			}	
+		}
+		
 	} catch (error) {
 		let date = moment().tz('America/Sao_Paulo').format('DD/MM/YYYY hh:mm:ss');
 
@@ -38,12 +58,17 @@ const check_bets = async (bet, match, key) => {
 			if ( match.result.maps[type_bet.type].finish && match.result.maps[type_bet.type].winner ) {
 				console.log(`${ bet.type_bet_name }: finaliza = ${match.result.maps[type_bet.type].finish}`);
 				console.log(`${ bet.type_bet_name }: possuí vencedor = ${match.result.maps[type_bet.type].winner.id}`);	
-				if (Number(match.result.maps[type_bet.type].winner.id) == Number(bet.team_id) ) { 
-					
-					result = "win";
-				}else {
-					result = "lost";
-				}													
+				if ( Number(match.result.maps[type_bet.type].winner.id && Number(bet.team_id) ) ){
+					if( bet.match_id != match.match_id ){
+						return 
+					}
+
+					if (Number(match.result.maps[type_bet.type].winner.id) == Number(bet.team_id) ) { 					
+						result = "win";
+					}else {
+						result = "lost";
+					}	
+				}																			
 			}else if (match.status == "Match over" || match.status == 'Match postponed'  ) {
 				result = 'map not played';
 			}
@@ -68,6 +93,7 @@ const check_bets = async (bet, match, key) => {
 	bet_result[type_bet._type]();
 
 	if ( result ) {
+		
 		bet.result = result;
 		
 		update(key, bet, result, match);
@@ -85,7 +111,7 @@ const update = async (betKey, betObj, result, match = null) => {
 			//console.log( betObj, " aposta inserida nos finalizados");
 			admin.database().ref('/bets/opens/' +  betKey).remove().then( async snap => {
 				//console.log( betObj, "Removido bet dos abertos" );
-				firebase_user.updateScoreUsers(betObj, result, betKey, notification.title, notification.message);
+				firebase_user.setNotifications(betObj, result, betKey, notification.title, notification.message);
 			}).catch( error => {
 				console.log(error)
 			});			
@@ -110,10 +136,9 @@ const update = async (betKey, betObj, result, match = null) => {
 			})
 	} catch (error) {
 		console.log(error);
-
 	}
-
 }
+
 const getTextToNotification = async (result, bet, match) => {
 	let bet_description = bet.type_bet_name; 
 	let team1_name = match.team1_name;
@@ -122,7 +147,7 @@ const getTextToNotification = async (result, bet, match) => {
 
 	let getMessage = {
 		win(){
-			return `Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos!`;
+			return `Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos! \n `;
 		},
 		lost(){
 			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu 15 pontos`;
