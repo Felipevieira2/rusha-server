@@ -5,6 +5,99 @@ const { HLTV } = require('hltv');
 const firebase_match = require('./match');
 const firebase_user = require('./user');
 
+module.exports.setBettingDataNotComputed = async () =>  { 
+	//var newHistotyRef = admin.database().ref('/history_bets/').push();
+	let bets = await admin
+		.database()
+		.ref('bets/finish')
+		.orderByChild('bet_computed')
+		.equalTo(false)
+		.limitToFirst(10)
+		.once('value')
+		.then(snap => {
+			let bets = [];
+
+			if (snap.exists()) {
+				snap.forEach( bet => {
+					let obj = bet.val();
+					obj.key = bet.key;
+
+					bets.push(obj);
+				})
+			
+			}else {
+				console.log('Sem apostas para computar');								
+			}
+			
+			return bets;
+		})	
+
+	//pontos para atualizar no User
+
+
+	let result =  bets.reduce(function (obj, item) {
+		obj[item.user_uid] = obj[item.user_uid] || [];
+	
+		obj[item.user_uid].push(item);
+
+		return obj;
+	}, {});
+
+	Object.keys(result).forEach ( key => { 
+		
+		let points_result = 0;
+
+		result[key].forEach( el => { 
+			el.result == "win"  ? points_result += Number(el.reward_points) : points_result -= Number(el.risk_loss_points);			
+			admin
+			.database()
+			.ref('bets/finish/' + el.key)			
+			.once('value')
+			.then(snap => {
+				snap.ref.update({bet_computed: true});
+			})
+		});
+
+		admin
+		.database()
+		.ref('/users/'+ key)
+		.once('value').then(  snapUser => {
+			if( snapUser.exists() ) {
+				let new_points_monthly = 0;
+				let new_points_yearly = 0;
+				
+				if( points_result >= 0 ) {
+					new_points_monthly = Number(snapUser.val().rank_points_yearly) + points_result;
+					new_points_yearly  = Number(snapUser.val().rank_points_yearly) + points_result;
+				}else {
+					new_points_monthly = Number(snapUser.val().rank_points_yearly) + points_result;
+					new_points_yearly  = Number(snapUser.val().rank_points_yearly) + points_result;
+				}
+			
+	
+				if( new_points_monthly < 0) { 
+					new_points_monthly = 0;
+				}
+	
+				if( new_points_yearly < 0) { 
+					new_points_yearly = 0;
+				}
+	
+				try {
+					snapUser.ref.update({rank_points_monthly: new_points_monthly});
+					snapUser.ref.update({rank_points_yearly: new_points_yearly});
+				} catch (error) {
+					console.log(error)
+				}			
+			}
+		});		
+	})
+
+
+	
+}
+
+
 module.exports.validBet = async (key, bet, match_id, match_status) =>  { 
 	try {
 		let match = await firebase_match.getMatchDB(match_id, match_status);

@@ -10,6 +10,7 @@ const moment = require('moment-timezone');
 const { default: hltvInstance, HLTV } = require('hltv');
 const { database } = require('firebase-admin');
 const axios = require('axios');
+const { user } = require('firebase-functions/lib/providers/auth');
 
 
 const createMatchesRealTimeDatabase = async () => {
@@ -420,31 +421,6 @@ exports.setLeadBitrix = functions.https.onRequest(async (req, res) => {
 });
 
 
-exports.teste3 = functions.https.onRequest(async (req, res) => {
-
-	let bets_users_win = await admin.database()
-	.ref('/user-bets/oQ8KaY6CiNTqBjXKbrMEXyk7Xau2/finish') 
-		.orderByChild('result')
-		.equalTo('lost')		   
-		.once('value').then(function (snapshot) {
-			if (snapshot.exists()) {
-				
-				return Object.entries(snapshot.val())
-			}else {
-				return []
-			}
-	});
-
-	let points_win = 0;
-
-	bets_users_win.forEach( item => { 
-		
-		points_win += Number(item[1].risk_loss_points);
-	});
-
-	return res.json({value: points_win});
-});
-
 exports.updateMatchesUpcomingOldersSchedule = functions.pubsub.schedule('*/5 * * * *').onRun(async (context) => {
 	await updateMatchesUpcomingOlders();
 	await updateTeamsNeedUpdating();
@@ -548,6 +524,10 @@ exports.storeWinnersMounthJob = functions.pubsub.schedule('1 of month 00:00').ti
 	firebase_users.resetAllRankPointsUsersMonth(); 
 });
 
+exports.setBettingDataNotComputedJob = functions.pubsub.schedule('*/4 * * * *').timeZone('America/Sao_Paulo').onRun(async (context) => {
+	await firebase_bet.setBettingDataNotComputed();
+});
+
 exports.storeWinnersYearJob = functions.pubsub.schedule('1 of jan 00:00').timeZone('America/Sao_Paulo').onRun(async (context) => {
 	let winnersYear = await firebase_users.getWinnersYear(10);
 	firebase_users.storeWinnersYear(winnersYear); 
@@ -602,11 +582,6 @@ const updateTeamsNeedUpdating = async () => {
 	await api_firebase_team.getTeamsNeedUpdate();
 }
 
-exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await updateBetsMatchFinish();
-
-});
-
 exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(event => {
 	if (event.exists()) {
 		return admin.database()
@@ -624,82 +599,54 @@ exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(eve
 	}
 });
 
-const getTextToNotification = async (result, bet, match) => {	
-	let team1_name = match.team1_name;
-	let team2_name = match.team2_name;
-	let choice_team_name = bet.team_name;
+// exports.update_points_bet_finish = functions.database.ref('/bets/finish/{key}').onCreate( async event => {	
+// 	if (event.exists()) {	
+// 		if( event.val().result == 'win' ) {		
+// 			admin.database()
+// 			.ref('/users')
+// 			.child(event.val().user_uid)
+// 			.child('rank_points_monthly')
+// 			.set(admin.database.ServerValue.increment(Number(event.val().reward_points)))
+// 			.then(() => {
+// 				console.log('User: ', event.val().user_uid, ' Efetuou uma aposta!',
+// 					'pontos ganhos: ', Number(event.val().reward_points),
+// 					'Aposta Key: ', event.key)
+// 			}).catch(error => { console.log(error) });
 
-	let getMessage = {
-		win(){
-			return `Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos!`;
-		},
-		lost(){
-			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu 15 pontos`;
-		},
-		mapnotplayed(){
-			return `Sua aposta no(a) ${choice_team_name} foi estornada, pois o mapa ou evento não foi disputado!`;
-		}		
-	}
-
-	let notifications = { 
-		title: `${team1_name} x ${team2_name} | ${bet.type_bet_name}`,
-		message: getMessage[result.split(' ').join('')]()
-	}
- 
-	return notifications;
-}
-
-exports.update_points_bet_finish = functions.database.ref('/bets/finish/{key}').onCreate(event => {	
-	if (event.exists()) {
-		if( event.val().result == 'win' ) {		
-			admin.database()
-			.ref('/users')
-			.child(event.val().user_uid)
-			.child('rank_points_monthly')
-			.set(admin.database.ServerValue.increment(Number(event.val().reward_points)))
-			.then(() => {
-				console.log('User: ', event.val().user_uid, ' Efetuou uma aposta!',
-					'pontos ganhos: ', Number(event.val().reward_points),
-					'Aposta Key: ', event.key)
-			}).catch(error => { console.log(error) });
-
-			admin.database()
-			.ref('/users')
-			.child(event.val().user_uid)
-			.child('rank_points_yearly')
-			.set(admin.database.ServerValue.increment(Number(event.val().reward_points)))
-			.then(() => {
+// 			admin.database()
+// 			.ref('/users')
+// 			.child(event.val().user_uid)
+// 			.child('rank_points_yearly')
+// 			.set(admin.database.ServerValue.increment(Number(event.val().reward_points)))
+// 			.then(() => {
 				
-			}).catch(error => { console.log(error) });
+// 			}).catch(error => { console.log(error) });
 
-		}else if (event.val().result == 'lost') {				
-			admin
-			.database()
-			.ref('/users')
-			.child(event.val().user_uid)
-			.child('rank_points_monthly')
-			.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().risk_loss_points))))
-			.then(() => {
-				console.log('User: ', event.val().user_uid, ' Efetuou uma aposta!',
-					'pontos perdidos: ', -Math.abs(Number(event.val().risk_loss_points)),
-					'Aposta Key: ', event.key)
-			}).catch(error => { console.log(error) });
-
-			admin
-			.database()
-			.ref('/users')
-			.child(event.val().user_uid)
-			.child('rank_points_yearly')
-			.set(admin.database.ServerValue.increment(-Math.abs(Number(event.val().risk_loss_points))))
-			.then(() => {
-			
-			}).catch(error => { console.log(error) });
-		}	
-	} else {
-		return Promise.reject('Unknown error');
-	}
+// 		}else if (event.val().result == 'lost') {				
+// 			admin
+// 			.database()
+// 			.ref('/users/'+ event.val().user_uid)
+// 			.once('value').then(snapUser => {
+// 				if( snapUser.exists() ) {
+// 					let new_points_monthly = snapUser.val().rank_points_monthly;
+					
+// 					if( (Number(new_points_monthly) - Number(event.val().risk_loss_points)) < 0) { 
+// 						new_points_monthly = 0;
+// 					}else {
+// 						new_points_monthly -= Number(event.val().risk_loss_points);
+// 					}
+					
+// 					snapUser.ref.update({rank_points_monthly: new_points_monthly})
+// 				}
+// 			});								
+// 		}	
+// 	} else {
+// 		return Promise.reject('Unknown error');
+// 	}
+// });setNotifications
+exports.teste4 = functions.https.onRequest(async (req, res) => {
+	await firebase_bet.setBettingDataNotComputed();
 });
-
 exports.getMatchHTLV = functions.https.onRequest(async (req, res) => {
 	let match = {};
 
