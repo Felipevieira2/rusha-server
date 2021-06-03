@@ -587,11 +587,6 @@ const updateTeamsNeedUpdating = async () => {
 	await api_firebase_team.getTeamsNeedUpdate();
 }
 
-exports.teste1 = functions.https.onRequest(async (req, res) => {
-	await updateBetsMatchFinish();
-
-});
-
 exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(event => {
 	if (event.exists()) {
 		return admin.database()
