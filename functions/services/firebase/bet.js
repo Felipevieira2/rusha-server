@@ -55,20 +55,23 @@ const check_bets = async (bet, match, key) => {
 			console.log(`Checando aposta name: ${bet.type_bet_name} sua escolha id: ${bet.team_id}`);
 			console.log(`Jogo: ${bet.match_id}`);			
 
-			if ( match.result.maps[type_bet.type].finish && match.result.maps[type_bet.type].winner ) {
-				console.log(`${ bet.type_bet_name }: finaliza = ${match.result.maps[type_bet.type].finish}`);
-				console.log(`${ bet.type_bet_name }: possuí vencedor = ${match.result.maps[type_bet.type].winner.id}`);	
-				if ( Number(match.result.maps[type_bet.type].winner.id && Number(bet.team_id) ) ){
-					if( bet.match_id != match.match_id ){
-						return 
+			if ( (match.result.maps[type_bet.type].finish && match.result.maps[type_bet.type].winner) ) {
+				if( match.team1_id == match.result.maps[type_bet.type].winner.id ||  match.team2_id == match.result.maps[type_bet.type].winner.id ){
+					console.log(`${ bet.type_bet_name }: finaliza = ${match.result.maps[type_bet.type].finish}`);
+					console.log(`${ bet.type_bet_name }: possuí vencedor = ${match.result.maps[type_bet.type].winner.id}`);	
+					if ( Number(match.result.maps[type_bet.type].winner.id && Number(bet.team_id) ) ){
+						if( bet.match_id != match.match_id ){
+							return 
+						}
+	
+						if (Number(match.result.maps[type_bet.type].winner.id) == Number(bet.team_id) ) { 					
+							result = "win";
+						}else {
+							result = "lost";
+						}	
 					}
-
-					if (Number(match.result.maps[type_bet.type].winner.id) == Number(bet.team_id) ) { 					
-						result = "win";
-					}else {
-						result = "lost";
-					}	
-				}																			
+				}
+																							
 			}else if (match.status == "Match over" || match.status == 'Match postponed'  ) {
 				result = 'map not played';
 			}

@@ -164,8 +164,6 @@ const getUsersDatabaseRealtime = async () => {
 const updateMatchesLive = async () => {
 	try {	
 		let matchesLive = await firebase_match.getListMatches('live');
-
-		console.log(matchesLive)
 		// 	//let lastDay = moment(new Date()).tz('America/Sao_Paulo').subtract(1, 'day').format('YYYY/MM/DD HH:mm');
 		matchesLive.forEach(async (item, idx) => {
 			await firebase_match.update(item[0], item[1].status);			
@@ -174,17 +172,14 @@ const updateMatchesLive = async () => {
 		console.log(error);
 		response = false;
 		
-
 		let date = moment().tz('America/Sao_Paulo').format('DD/MM/YYYY hh:mm:ss');
-
-
 		var newPostRef = admin.database().ref('/errors/').push();
 
 		newPostRef.set({ 
 			datetime: date, 
 			msg: error.message, 
-			function: 'updateMatchesLive'})
-
+			function: 'updateMatchesLive'
+		})
 	}
 
 };

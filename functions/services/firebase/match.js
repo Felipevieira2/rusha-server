@@ -91,6 +91,7 @@ const formatObjMatch = async (item, updating = false) => {
 
         for (let index = 0; index < gameTypeBestOf; index++) {                    
             let map = {};	
+            
             if ( typeof matchHLTV.maps[index].result !== 'undefined' ) {
                 map.name = matchHLTV.maps[index].name;			
                 map.result = matchHLTV.maps[index].result.substring(0, 5).replace('(', ''); 
@@ -179,7 +180,7 @@ async function update  (id, status_current = '', ) {
         console.log(error, 'Erro na função [module.exports.store] getMatch HLTV');
         response = false;	
     });		
-    console.log(matchHLTV)
+  
     if ( matchHLTV ) {		    
         let match = await formatObjMatch(matchHLTV, updating = true);
              
@@ -208,8 +209,7 @@ async function update  (id, status_current = '', ) {
         await admin.database()
         .ref(ref)
         .update(JSON.parse( JSON.stringify(match))).then( async () => {
-            if( status != status_current.toLocaleLowerCase() )
-            {
+            if( status != status_current.toLocaleLowerCase() ){
                 let ref = '/matches/'+ status_current.toLocaleLowerCase() +'/' + id;
                
                 await admin.database()
@@ -230,7 +230,6 @@ async function update  (id, status_current = '', ) {
             }
         }); 
 
-        console.log('não encontrada partida na hltv')
     }
 }
 
@@ -311,8 +310,7 @@ const getBetsOpens = async (match_id) => {
         .once('value').then(function (snapBets) {            
             if (snapBets.exists()) {
                 return Object.entries(snapBets.val());
-            } else {
-                console.log('nenhuma aposta encontrada')
+            } else {             
                 return [];
             }
         }, function (error) {
