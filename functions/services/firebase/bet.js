@@ -165,7 +165,7 @@ const check_bets = async (bet, match, key) => {
 					}
 				}
 																							
-			}else if (match.status == "Match over" || match.status == 'Match postponed'  ) {
+			}else if( (match.status == "Match over" || match.status == 'Match postponed'  ) && !match.result.maps[type_bet.type].winner) {
 				result = 'map not played';
 			}
 			
