@@ -394,8 +394,7 @@ exports.createMatchesSchedule = functions.pubsub.schedule('*/3 * * * *').onRun(a
 exports.setLeadBitrix = functions.https.onRequest(async (req, res) => {
 	let url = "https://medfit.bitrix24.com.br/rest/1/jv899bxkerqprws2/crm.lead.add" 
 	
-	let params = `?FIELD
-	S[NAME]=${req.body.name}
+	let params = `?FIELDS[NAME]=${req.body.name}
 	&FIELDS[EMAIL][0][VALUE]=${req.body.email}
 	&FIELDS[PHONE][0][VALUE]=${req.body.phone}
 	&FIELDS[UF_CRM_1587994360221]=${req.body.obs}
@@ -480,7 +479,6 @@ exports.updateRankingMonthly = functions.pubsub.schedule('*/10 * * * *').onRun(a
 
 	mapped.forEach((item, index) => {
 		admin.database().ref('/users/' + item[0]).update(item[1]);
-
 	});
 
 	return null;

@@ -150,6 +150,8 @@ const createHistoryBets = async (bets, user) => {
 								points_lost: points_lost, //pontos removidos do usuário
 								status: bet.result,
 								refund: refund,
+								cost: bet.cost,
+								bets_points_previous: Number(user.bet_points) - Number(bet.cost),
 								team1_name: team1_name,
 								team2_name: team2_name,
 								match_id: bet.match_id,
