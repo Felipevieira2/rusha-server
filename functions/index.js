@@ -180,9 +180,8 @@ const updateMatchesLive = async () => {
 			datetime: date, 
 			msg: error.message, 
 			function: 'updateMatchesLive'
-		})
+		});
 	}
-
 };
 
 exports.getMatchesDatabaseRealTime = functions.https.onRequest(async (req, res) => {
@@ -450,7 +449,7 @@ exports.updatePlayersTeamSchedule = functions.pubsub.schedule('*/5 * * * *').onR
 });
 
 exports.updateBetsMatchLiveSchedule = functions.pubsub.schedule('*/4 * * * *').onRun(async (context) => {
-	await updateBetsMatchLive();
+	//await updateBetsMatchLive();
 
 	console.log('updateBetsMatchLive will be run every 3 minutes!');
 	return null;
@@ -644,9 +643,15 @@ exports.update_points = functions.database.ref('/bets/opens/{key}').onCreate(eve
 // 		return Promise.reject('Unknown error');
 // 	}
 // });setNotifications
+
 exports.teste4 = functions.https.onRequest(async (req, res) => {
 	await firebase_bet.setBettingDataNotComputed();
+	
+	return res.end();
 });
+
+
+
 exports.getMatchHTLV = functions.https.onRequest(async (req, res) => {
 	let match = {};
 
