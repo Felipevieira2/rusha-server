@@ -325,7 +325,7 @@ const getTextToNotification = async (result, bet, match) => {
 			return `Parabéns, você apostou no(a) ${choice_team_name} e ganhou ${bet.reward_points} pontos! \n `;
 		},
 		lost() {
-			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu 15 pontos`;
+			return `Infelizmente, você apostou no(a) ${choice_team_name} e perdeu ${bet.risk_loss_points} pontos!`;
 		},
 		mapnotplayed() {
 			return `Sua aposta no(a) ${choice_team_name} foi estornada, pois o mapa ou evento não foi disputado!`;
