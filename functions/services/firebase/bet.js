@@ -259,7 +259,7 @@ const check_bets = async (bet, match, key) => {
 			if (isPostponed) {
 				result = 'map not played';
 
-			} else if (isThereWinner) {
+			} else if (isThereWinner && match.status == "Match over") {
 				result = bet.team_id == match.result.winnerTeam.id ? 'win' : 'lost';
 			}
 		},
