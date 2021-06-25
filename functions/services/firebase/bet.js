@@ -24,17 +24,16 @@ module.exports.setBettingDataNotComputed = async () => {
 					obj.key = bet.key;
 
 					bets.push(obj);
-				})
+				});
 
 			} else {
 				console.log('Sem apostas para computar');
 			}
 
 			return bets;
-		})
+		});
 
 	//pontos para atualizar no User
-
 
 	let result = bets.reduce(function (obj, item) {
 		obj[item.user_uid] = obj[item.user_uid] || [];
@@ -46,51 +45,53 @@ module.exports.setBettingDataNotComputed = async () => {
 
 	Object.keys(result).forEach(key => {
 		let points_result = 0;
-
-		result[key].forEach(el => {
+	
+		result[key].forEach( async (el, index) => {
+	
+			
 			if (el.result == "win") {
 				points_result += Number(el.reward_points);
+			
 			} else if (el.result == "lost") {
 				points_result -= Number(el.risk_loss_points);
 			}
-								
+			
+
 			admin
 				.database()
 				.ref('bets/finish/' + el.key)
 				.once('value')
 				.then(snap => {
+				
 					snap.ref.update({ bet_computed: true });					
-				});						
+				});
+								
 		});
-
+	
 		admin
 			.database()
 			.ref('/users/' + key)
 			.once('value').then(snapUser => {
 				if (snapUser.exists()) {
 					let new_points_monthly = 0;
-					let new_points_yearly = 0;
+					let new_points_yearly = 0;	
 
 					if (points_result >= 0) {
-						new_points_monthly = Number(snapUser.val().rank_points_yearly) + points_result;
+						new_points_monthly = Number(snapUser.val().rank_points_monthly) + points_result;
 						new_points_yearly = Number(snapUser.val().rank_points_yearly) + points_result;
-					} else {
-						new_points_monthly = Number(snapUser.val().rank_points_yearly) + points_result;
-						new_points_yearly = Number(snapUser.val().rank_points_yearly) + points_result;
-					}
-
+					} 
 
 					if (new_points_monthly < 0) {
 						new_points_monthly = 0;
 					}
 
-					if (new_points_yearly < 0) {
+					if (new_points_yearly < 0) {0
 						new_points_yearly = 0;
 					}
 
 					try {
-						createHistoryBets(result[key], snapUser.val());
-
+						createHistoryBets(result[key], snapUser.val());						
+											
 						snapUser.ref.update({ rank_points_monthly: new_points_monthly });
 						snapUser.ref.update({ rank_points_yearly: new_points_yearly });
 						
@@ -102,10 +103,13 @@ module.exports.setBettingDataNotComputed = async () => {
 	});
 }
 
-const createHistoryBets = async (bets, user) => {
+const createHistoryBets = async (bets, user, ) => {
 	let points_win = 0;
 	let points_lost = 0;
 	refund = false;
+
+	let rank_points_monthly_current = Number(user.rank_points_monthly); 
+	let rank_points_yearly_current = Number(user.rank_points_yearly);
 
 	bets.forEach( async bet => {
 		admin.database()
@@ -118,22 +122,22 @@ const createHistoryBets = async (bets, user) => {
 				.ref('/matches/finish/' + bet.match_id )
 				.child('team2_name')          
 				.once('value').then( snapTeam2_name => {
-				
+					
 					if( snapTeam2_name.exists() ){
 						let team2_name = snapTeam2_name.val();
 						let new_points_monthly = 0;
-						let new_points_yearly = 0;
-				
+						let new_points_yearly = 0;						
+
 						if (bet.result == 'win') {
 							points_win = bet.reward_points;
 							
-							new_points_monthly = Number(user.rank_points_yearly) + bet.reward_points;
-							new_points_yearly = Number(user.rank_points_yearly) + bet.reward_points;		
+							new_points_monthly = Number(rank_points_monthly_current) + bet.reward_points;
+							new_points_yearly = Number(rank_points_yearly_current) + bet.reward_points;					
 						} else if (bet.result == 'lost') {
 							points_lost = bet.risk_loss_points;
 				
-							new_points_monthly = Number(user.rank_points_yearly) - bet.risk_loss_points;
-							new_points_yearly = Number(user.rank_points_yearly) - bet.risk_loss_points;
+							new_points_monthly = Number(rank_points_monthly_current) - bet.risk_loss_points;
+							new_points_yearly = Number(rank_points_yearly_current) - bet.risk_loss_points;
 						}else if (bet.result == 'map not played') {
 							refund = true;
 						}
@@ -142,9 +146,9 @@ const createHistoryBets = async (bets, user) => {
 				
 						newRef.set({
 								key_bet: bet.key,
-								rank_points_monthly_previous: user.rank_points_monthly, //saldo anterior no momento que os pontos foram computados
+								rank_points_monthly_previous: rank_points_monthly_current, //saldo anterior no momento que os pontos foram computados
 								rank_points_monthly_updated: new_points_monthly, //saldo atualizado no momento que os pontos foram computados
-								rank_points_yearly_previous: user.rank_points_yearly, //saldo anterior no momento que os pontos foram computados
+								rank_points_yearly_previous: rank_points_yearly_current, //saldo anterior no momento que os pontos foram computados
 								rank_points_yearly_updated: new_points_yearly, //saldo atualizado no momento que os pontos foram computados
 								points_win: points_win, //pontos enviados ao usuário
 								points_lost: points_lost, //pontos removidos do usuário
@@ -159,20 +163,18 @@ const createHistoryBets = async (bets, user) => {
 								datetime: moment(new Date()).tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm'),
 								description_bet: bet.type_bet_name,			
 								user_bet_selected: bet.team_name
-							})			
+							})	
+							
+							rank_points_monthly_current = new_points_monthly;
+							rank_points_yearly_current = new_points_yearly;
 					}else{
-						console.log('dont exists()')
-					}
-				   
-				})
+						console.log('dont exists()');
+					}				   
+				});
 			}else{
-				console.log('dont exists()')
-			}
-		
-		});
-
-	
-		
+				console.log('dont exists()');
+			}		
+		});			
 	});	
 }
 

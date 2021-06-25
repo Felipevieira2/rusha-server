@@ -31,7 +31,7 @@ const setNotifications = async (bet, result, betKey, titleNotification, msgNotif
 				push_notification: false,
 			};
 
-			admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then(snapUser => { });
+			admin.database().ref('/notifications/' + bet.user_uid + '/' + betKey).set(newNotification).then(snapUser => { });
 			
             } else {
                 let new_points_monthly = result == 'win' ? Number(points_monthly) + Number(reward_points) : Number(points_monthly) - Number(risk_points);
@@ -54,7 +54,7 @@ const setNotifications = async (bet, result, betKey, titleNotification, msgNotif
                     push_notification: false,
                 };
 
-                admin.database().ref('/users/' + bet.user_uid + '/notifications/' + betKey).set(newNotification).then(snapUser => { });
+                admin.database().ref('/notifications/' + bet.user_uid + '/' + betKey).set(newNotification).then(snapUser => { });
             }
         })
 }
