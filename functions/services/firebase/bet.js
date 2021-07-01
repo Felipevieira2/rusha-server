@@ -111,70 +111,49 @@ const createHistoryBets = async (bets, user, ) => {
 	let rank_points_monthly_current = Number(user.rank_points_monthly); 
 	let rank_points_yearly_current = Number(user.rank_points_yearly);
 
-	bets.forEach( async bet => {
-		admin.database()
-		.ref('/matches/finish/' + bet.match_id )
-		.child('team1_name')          
-		.once('value').then( snapTeam1_name => {
-			if( snapTeam1_name.exists() ){
-				let team1_name = snapTeam1_name.val();
-				admin.database()
-				.ref('/matches/finish/' + bet.match_id )
-				.child('team2_name')          
-				.once('value').then( snapTeam2_name => {
-					
-					if( snapTeam2_name.exists() ){
-						let team2_name = snapTeam2_name.val();
-						let new_points_monthly = 0;
-						let new_points_yearly = 0;						
+	bets.forEach( async bet => {	
+		let new_points_monthly = 0;
+		let new_points_yearly = 0;						
 
-						if (bet.result == 'win') {
-							points_win = bet.reward_points;
-							
-							new_points_monthly = Number(rank_points_monthly_current) + bet.reward_points;
-							new_points_yearly = Number(rank_points_yearly_current) + bet.reward_points;					
-						} else if (bet.result == 'lost') {
-							points_lost = bet.risk_loss_points;
-				
-							new_points_monthly = Number(rank_points_monthly_current) - bet.risk_loss_points;
-							new_points_yearly = Number(rank_points_yearly_current) - bet.risk_loss_points;
-						}else if (bet.result == 'map not played') {
-							refund = true;
-						}
-				
-						var newRef = admin.database().ref('history_points_users/' + bet.user_uid).push();
-				
-						newRef.set({
-								key_bet: bet.key,
-								rank_points_monthly_previous: rank_points_monthly_current, //saldo anterior no momento que os pontos foram computados
-								rank_points_monthly_updated: new_points_monthly, //saldo atualizado no momento que os pontos foram computados
-								rank_points_yearly_previous: rank_points_yearly_current, //saldo anterior no momento que os pontos foram computados
-								rank_points_yearly_updated: new_points_yearly, //saldo atualizado no momento que os pontos foram computados
-								points_win: points_win, //pontos enviados ao usuário
-								points_lost: points_lost, //pontos removidos do usuário
-								status: bet.result,
-								refund: refund,
-								cost: bet.cost,
-								bets_points_previous: Number(user.bet_points) - Number(bet.cost),
-								team1_name: team1_name,
-								team2_name: team2_name,
-								match_id: bet.match_id,
-								datetime_bet: bet.datetime,
-								datetime: moment(new Date()).tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm'),
-								description_bet: bet.type_bet_name,			
-								user_bet_selected: bet.team_name
-							})	
-							
-							rank_points_monthly_current = new_points_monthly;
-							rank_points_yearly_current = new_points_yearly;
-					}else{
-						console.log('dont exists()');
-					}				   
-				});
-			}else{
-				console.log('dont exists()');
-			}		
-		});			
+		if (bet.result == 'win') {
+			points_win = bet.reward_points;
+			
+			new_points_monthly = Number(rank_points_monthly_current) + bet.reward_points;
+			new_points_yearly = Number(rank_points_yearly_current) + bet.reward_points;					
+		} else if (bet.result == 'lost') {
+			points_lost = bet.risk_loss_points;
+
+			new_points_monthly = Number(rank_points_monthly_current) - bet.risk_loss_points;
+			new_points_yearly = Number(rank_points_yearly_current) - bet.risk_loss_points;
+		} else if (bet.result == 'map not played') {
+			refund = true;
+		}
+
+		var newRef = admin.database().ref('history_points_users/' + bet.user_uid).push();
+
+		newRef.set({
+			key_bet: bet.key,
+			rank_points_monthly_previous: rank_points_monthly_current, //saldo anterior no momento que os pontos foram computados
+			rank_points_monthly_updated: new_points_monthly, //saldo atualizado no momento que os pontos foram computados
+			rank_points_yearly_previous: rank_points_yearly_current, //saldo anterior no momento que os pontos foram computados
+			rank_points_yearly_updated: new_points_yearly, //saldo atualizado no momento que os pontos foram computados
+			points_win: points_win, //pontos enviados ao usuário
+			points_lost: points_lost, //pontos removidos do usuário
+			status: bet.result,
+			refund: refund,
+			cost: bet.cost,
+			bets_points_previous: Number(user.bet_points) - Number(bet.cost),
+			team1_name: bet.team1_name,
+			team2_name: bet.team2_name,
+			match_id: bet.match_id,
+			datetime_bet: bet.datetime,
+			datetime: moment(new Date()).tz('America/Sao_Paulo').format('YYYY/MM/DD HH:mm'),
+			description_bet: bet.type_bet_name,			
+			user_bet_selected: bet.team_name
+		});	
+		
+		rank_points_monthly_current = new_points_monthly;
+		rank_points_yearly_current = new_points_yearly;								
 	});	
 }
 
